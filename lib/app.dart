@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'features/onboarding/presentation/onboarding_screen.dart';
 import 'core/theme/app_theme.dart';
+import 'features/splash/presentation/splash_screen.dart';
 
 class AgroConnectApp extends StatelessWidget {
   const AgroConnectApp({super.key});
@@ -10,8 +10,8 @@ class AgroConnectApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'AgroConnect',
-theme: AppTheme.lightTheme,
-     home:  OnboardingScreen(),
+      theme: AppTheme.lightTheme,
+      home: const SplashScreen(),
     );
   }
 }

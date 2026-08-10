@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:agroconnect/core/constants/app_colors.dart';
+import 'package:agroconnect/features/authentication/presentation/login_screen.dart';
+import 'package:agroconnect/features/authentication/presentation/register_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -19,6 +21,7 @@ class WelcomeScreen extends StatelessWidget {
                 color: AppColors.primary,
               ),
               const SizedBox(height: 24),
+
               const Text(
                 'Welcome to AgroConnect',
                 textAlign: TextAlign.center,
@@ -27,7 +30,9 @@ class WelcomeScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+
               const SizedBox(height: 12),
+
               const Text(
                 'Connect with farmers, discover fresh produce, and manage your agricultural marketplace.',
                 textAlign: TextAlign.center,
@@ -36,12 +41,21 @@ class WelcomeScreen extends StatelessWidget {
                   color: AppColors.grey,
                 ),
               ),
+
               const SizedBox(height: 40),
+
               SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LoginScreen(),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.white,
@@ -49,15 +63,26 @@ class WelcomeScreen extends StatelessWidget {
                   child: const Text('Log In'),
                 ),
               ),
+
               const SizedBox(height: 16),
+
               SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: OutlinedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RegisterScreen(),
+                      ),
+                    );
+                  },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary),
+                    side: const BorderSide(
+                      color: AppColors.primary,
+                    ),
                   ),
                   child: const Text('Create Account'),
                 ),
