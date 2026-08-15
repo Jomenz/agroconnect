@@ -3,8 +3,7 @@ class Order {
   final List<OrderItem> items;
   final double total;
   final String deliveryAddress;
-  final String buyerName;
-  final String farmerName;
+  final String fulfillmentMethod;
   String status;
   final DateTime date;
 
@@ -13,8 +12,7 @@ class Order {
     required this.items,
     required this.total,
     required this.deliveryAddress,
-    required this.buyerName,
-    required this.farmerName,
+    this.fulfillmentMethod = 'Delivery',
     this.status = 'Pending',
     required this.date,
   });

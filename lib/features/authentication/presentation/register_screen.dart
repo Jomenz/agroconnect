@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:agroconnect/core/constants/app_colors.dart';
+import 'package:agroconnect/features/authentication/data/user_store.dart';
 import 'package:agroconnect/features/buyer/presentation/buyer_home_screen.dart';
 import 'package:agroconnect/features/farmer/presentation/farmer_home_screen.dart';
 
@@ -12,6 +13,142 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   String selectedRole = "Buyer";
+
+  final TextEditingController nameController =
+      TextEditingController();
+
+  final TextEditingController emailController =
+      TextEditingController();
+
+  final TextEditingController phoneController =
+      TextEditingController();
+
+  final TextEditingController passwordController =
+      TextEditingController();
+
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    emailController.dispose();
+    phoneController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+
+    super.dispose();
+  }
+Future<void> _createAccount() async {
+    final name = nameController.text.trim();
+    final email = emailController.text.trim();
+    final phone = phoneController.text.trim();
+    final password = passwordController.text;
+    final confirmPassword =
+        confirmPasswordController.text;
+
+    // CHECK EMPTY FIELDS
+    if (name.isEmpty ||
+        email.isEmpty ||
+        phone.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please fill in all fields.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // CHECK EMAIL
+    if (!email.contains('@') || !email.contains('.')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter a valid email address.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // CHECK PASSWORD
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Password must contain at least 6 characters.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // CHECK PASSWORD MATCH
+    if (password != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Passwords do not match.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // CHECK EXISTING EMAIL
+    if (UserStore.emailExists(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'An account with this email already exists.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // CREATE USER
+    final user = User(
+      name: name,
+      email: email,
+      phone: phone,
+      password: password,
+      role: selectedRole,
+    );
+
+    await UserStore.addUser(user);
+
+    // GO TO CORRESPONDING HOME SCREEN
+    if (selectedRole == "Buyer") {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const BuyerHomeScreen(),
+        ),
+        (route) => false,
+      );
+    } else {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const FarmerHomeScreen(),
+        ),
+        (route) => false,
+      );
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Account created successfully!',
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,9 +175,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           padding: const EdgeInsets.all(24),
 
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
 
+            children: [
               const Text(
                 "Join AgroConnect",
                 style: TextStyle(
@@ -62,13 +200,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               // FULL NAME
               TextField(
+                controller: nameController,
                 decoration: InputDecoration(
                   labelText: "Full Name",
                   prefixIcon: const Icon(
                     Icons.person_outline,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius:
+                        BorderRadius.circular(12),
                   ),
                 ),
               ),
@@ -77,14 +217,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               // EMAIL
               TextField(
-                keyboardType: TextInputType.emailAddress,
+                controller: emailController,
+                keyboardType:
+                    TextInputType.emailAddress,
                 decoration: InputDecoration(
                   labelText: "Email",
                   prefixIcon: const Icon(
                     Icons.email_outlined,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius:
+                        BorderRadius.circular(12),
                   ),
                 ),
               ),
@@ -93,14 +236,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               // PHONE
               TextField(
-                keyboardType: TextInputType.phone,
+                controller: phoneController,
+                keyboardType:
+                    TextInputType.phone,
                 decoration: InputDecoration(
                   labelText: "Phone Number",
                   prefixIcon: const Icon(
                     Icons.phone_outlined,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius:
+                        BorderRadius.circular(12),
                   ),
                 ),
               ),
@@ -109,6 +255,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               // PASSWORD
               TextField(
+                controller: passwordController,
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: "Password",
@@ -116,7 +263,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     Icons.lock_outline,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius:
+                        BorderRadius.circular(12),
                   ),
                 ),
               ),
@@ -125,6 +273,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               // CONFIRM PASSWORD
               TextField(
+                controller:
+                    confirmPasswordController,
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: "Confirm Password",
@@ -132,7 +282,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     Icons.lock_outline,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius:
+                        BorderRadius.circular(12),
                   ),
                 ),
               ),
@@ -152,7 +303,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 value: "Buyer",
                 groupValue: selectedRole,
                 title: const Text("Buyer"),
-                activeColor: AppColors.primary,
+                activeColor:
+                    AppColors.primary,
                 onChanged: (value) {
                   setState(() {
                     selectedRole = value!;
@@ -165,7 +317,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 value: "Farmer",
                 groupValue: selectedRole,
                 title: const Text("Farmer"),
-                activeColor: AppColors.primary,
+                activeColor:
+                    AppColors.primary,
                 onChanged: (value) {
                   setState(() {
                     selectedRole = value!;
@@ -181,31 +334,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 height: 55,
 
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: _createAccount,
 
-                    if (selectedRole == "Buyer") {
-
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const BuyerHomeScreen(),
-                        ),
-                      );
-
-                    } else {
-
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const FarmerHomeScreen(),
-                        ),
-                      );
-                    }
-                  },
-
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.white,
+                  style:
+                      ElevatedButton.styleFrom(
+                    backgroundColor:
+                        AppColors.primary,
+                    foregroundColor:
+                        AppColors.white,
                   ),
 
                   child: const Text(

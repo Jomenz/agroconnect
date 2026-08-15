@@ -10,6 +10,9 @@ class CartItem {
   });
 
   double get totalPrice => product.price * quantity;
+
+  // Maximum quantity the buyer can add.
+  int get availableQuantity => product.quantity;
 }
 
 class CartStore {
@@ -17,23 +20,56 @@ class CartStore {
 
   static final List<CartItem> items = [];
 
-  static void addToCart(Product product) {
+  // --------------------------------------------------
+  // ADD TO CART
+  // --------------------------------------------------
+
+  static bool addToCart(Product product) {
+    // Product is out of stock.
+    if (product.quantity <= 0) {
+      return false;
+    }
+
     final existingItem = items.where(
-      (item) => item.product.name == product.name,
+      (item) => item.product.id == product.id,
     );
 
     if (existingItem.isNotEmpty) {
-      existingItem.first.quantity++;
+      final item = existingItem.first;
+
+      // Don't allow the buyer to exceed available stock.
+      if (item.quantity >= product.quantity) {
+        return false;
+      }
+
+      item.quantity++;
     } else {
       items.add(
-        CartItem(product: product),
+        CartItem(
+          product: product,
+        ),
       );
     }
+
+    return true;
   }
 
-  static void increaseQuantity(CartItem item) {
+  // --------------------------------------------------
+  // INCREASE QUANTITY
+  // --------------------------------------------------
+
+  static bool increaseQuantity(CartItem item) {
+    if (item.quantity >= item.product.quantity) {
+      return false;
+    }
+
     item.quantity++;
+    return true;
   }
+
+  // --------------------------------------------------
+  // DECREASE QUANTITY
+  // --------------------------------------------------
 
   static void decreaseQuantity(CartItem item) {
     if (item.quantity > 1) {
@@ -43,9 +79,17 @@ class CartStore {
     }
   }
 
+  // --------------------------------------------------
+  // REMOVE ITEM
+  // --------------------------------------------------
+
   static void removeItem(CartItem item) {
     items.remove(item);
   }
+
+  // --------------------------------------------------
+  // TOTAL
+  // --------------------------------------------------
 
   static double get total {
     return items.fold(
@@ -53,6 +97,10 @@ class CartStore {
       (sum, item) => sum + item.totalPrice,
     );
   }
+
+  // --------------------------------------------------
+  // CLEAR CART
+  // --------------------------------------------------
 
   static void clearCart() {
     items.clear();

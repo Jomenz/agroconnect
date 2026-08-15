@@ -41,4 +41,48 @@ class ProductStore {
   static void addProduct(Product product) {
     products.add(product);
   }
+
+  static void updateProduct(Product updatedProduct) {
+    final index = products.indexWhere(
+      (product) => product.id == updatedProduct.id,
+    );
+
+    if (index != -1) {
+      products[index] = updatedProduct;
+    }
+  }
+
+  static void deleteProduct(String productId) {
+    products.removeWhere(
+      (product) => product.id == productId,
+    );
+  }
+
+  // --------------------------------------------------
+  // REDUCE PRODUCT STOCK
+  // --------------------------------------------------
+
+  static bool reduceStock(
+    String productId,
+    int quantity,
+  ) {
+    final index = products.indexWhere(
+      (product) => product.id == productId,
+    );
+
+    if (index == -1) {
+      return false;
+    }
+
+    final product = products[index];
+
+    // Prevent stock from becoming negative.
+    if (quantity <= 0 || quantity > product.quantity) {
+      return false;
+    }
+
+    product.quantity -= quantity;
+
+    return true;
+  }
 }

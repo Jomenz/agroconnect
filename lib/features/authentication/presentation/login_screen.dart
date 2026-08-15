@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:agroconnect/core/constants/app_colors.dart';
+import 'package:agroconnect/features/authentication/data/user_store.dart';
 import 'package:agroconnect/features/authentication/presentation/register_screen.dart';
 import 'package:agroconnect/features/buyer/presentation/buyer_home_screen.dart';
+import 'package:agroconnect/features/farmer/presentation/farmer_home_screen.dart';
+import 'package:agroconnect/features/admin/presentation/admin_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,6 +15,90 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool obscurePassword = true;
+
+  final TextEditingController emailController =
+      TextEditingController();
+
+  final TextEditingController passwordController =
+      TextEditingController();
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+
+    super.dispose();
+  }
+
+  void _login() {
+    final email = emailController.text.trim();
+    final password = passwordController.text;
+
+    // CHECK EMPTY FIELDS
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter your email and password.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // FIND USER
+    final user = UserStore.findUser(
+      email,
+      password,
+    );
+
+    // INVALID LOGIN
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Invalid email or password.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // ADMIN
+    if (user.role == 'Admin') {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const AdminHomeScreen(),
+        ),
+        (route) => false,
+      );
+
+      return;
+    }
+
+    // FARMER
+    if (user.role == 'Farmer') {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const FarmerHomeScreen(),
+        ),
+        (route) => false,
+      );
+
+      return;
+    }
+
+    // BUYER
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const BuyerHomeScreen(),
+      ),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,9 +118,10 @@ class _LoginScreenState extends State<LoginScreen> {
           padding: const EdgeInsets.all(24),
 
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
 
+            children: [
               const SizedBox(height: 20),
 
               const Text(
@@ -57,11 +145,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
               // EMAIL
               TextField(
+                controller: emailController,
+                keyboardType:
+                    TextInputType.emailAddress,
                 decoration: InputDecoration(
                   labelText: "Email",
-                  prefixIcon: const Icon(Icons.email_outlined),
+                  prefixIcon: const Icon(
+                    Icons.email_outlined,
+                  ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius:
+                        BorderRadius.circular(12),
                   ),
                 ),
               ),
@@ -70,10 +164,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
               // PASSWORD
               TextField(
+                controller: passwordController,
                 obscureText: obscurePassword,
                 decoration: InputDecoration(
                   labelText: "Password",
-                  prefixIcon: const Icon(Icons.lock_outline),
+                  prefixIcon: const Icon(
+                    Icons.lock_outline,
+                  ),
 
                   suffixIcon: IconButton(
                     icon: Icon(
@@ -84,13 +181,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     onPressed: () {
                       setState(() {
-                        obscurePassword = !obscurePassword;
+                        obscurePassword =
+                            !obscurePassword;
                       });
                     },
                   ),
 
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius:
+                        BorderRadius.circular(12),
                   ),
                 ),
               ),
@@ -102,7 +201,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 alignment: Alignment.centerRight,
 
                 child: TextButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Password recovery will be added later.',
+                        ),
+                      ),
+                    );
+                  },
+
                   child: const Text(
                     "Forgot Password?",
                   ),
@@ -117,18 +226,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: 55,
 
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const BuyerHomeScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: _login,
 
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.white,
+                  style:
+                      ElevatedButton.styleFrom(
+                    backgroundColor:
+                        AppColors.primary,
+                    foregroundColor:
+                        AppColors.white,
                   ),
 
                   child: const Text(
@@ -144,10 +249,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
               // CREATE ACCOUNT
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
 
                 children: [
-
                   const Text(
                     "Don't have an account?",
                   ),
@@ -157,7 +262,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const RegisterScreen(),
+                          builder: (_) =>
+                              const RegisterScreen(),
                         ),
                       );
                     },

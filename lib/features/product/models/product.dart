@@ -2,7 +2,7 @@ class Product {
   final String id;
   final String name;
   final double price;
-  final int quantity;
+  int quantity;
   final String description;
   final String farmerName;
 

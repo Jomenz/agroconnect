@@ -5,6 +5,7 @@ import 'package:agroconnect/features/product/data/product_store.dart';
 import 'package:agroconnect/features/order/data/order_store.dart';
 import 'package:agroconnect/features/authentication/presentation/login_screen.dart';
 import 'package:agroconnect/features/order/models/order.dart';
+import 'package:agroconnect/features/farmer/presentation/farmer_products_screen.dart';
 
 class FarmerHomeScreen extends StatefulWidget {
   const FarmerHomeScreen({super.key});
@@ -33,6 +34,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
       const AddProductPage(),
       const FarmerOrdersPage(),
       const FarmerProfilePage(),
+      const MyProductsPage(),
     ];
   }
 
@@ -67,6 +69,10 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
             icon: Icon(Icons.person),
             label: 'Profile',
           ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.inventory_2),
+            label: 'My Products',
+          ),
         ],
       ),
     );
@@ -87,7 +93,12 @@ class FarmerHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final productCount = ProductStore.products.length;
+    // Only count products belonging to this farmer.
+    final farmerProducts = ProductStore.products
+        .where((product) => product.farmerName == 'Farmer')
+        .toList();
+
+    final productCount = farmerProducts.length;
     final orderCount = OrderStore.orders.length;
 
     return SafeArea(
@@ -118,7 +129,7 @@ class FarmerHomePage extends StatelessWidget {
               children: [
                 Expanded(
                   child: _DashboardCard(
-                    title: 'Products',
+                    title: 'My Products',
                     value: '$productCount',
                     icon: Icons.inventory_2,
                   ),
@@ -175,6 +186,37 @@ class FarmerHomePage extends StatelessWidget {
               ),
             ),
 
+            const SizedBox(height: 10),
+
+            // MY PRODUCTS
+            Card(
+              child: ListTile(
+                leading: const Icon(
+                  Icons.inventory_2,
+                  color: AppColors.primary,
+                  size: 35,
+                ),
+                title: const Text(
+                  'My Products',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: const Text(
+                  'View, edit or delete your products.',
+                ),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 18,
+                ),
+                onTap: () {
+                  onNavigate(4);
+                },
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
             // VIEW ORDERS
             Card(
               child: ListTile(
@@ -201,6 +243,39 @@ class FarmerHomePage extends StatelessWidget {
                 },
               ),
             ),
+            const SizedBox(height: 10),
+
+// MANAGE PRODUCTS
+Card(
+  child: ListTile(
+    leading: const Icon(
+      Icons.inventory_2,
+      color: AppColors.primary,
+      size: 35,
+    ),
+    title: const Text(
+      'Manage Products',
+      style: TextStyle(
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+    subtitle: const Text(
+      'View, edit or remove your listed products.',
+    ),
+    trailing: const Icon(
+      Icons.arrow_forward_ios,
+      size: 18,
+    ),
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const FarmerProductsScreen(),
+        ),
+      );
+    },
+  ),
+),
           ],
         ),
       ),
@@ -341,6 +416,8 @@ class _AddProductPageState extends State<AddProductPage> {
       price: price,
       quantity: quantity,
       description: description,
+
+      // This identifies products belonging to the farmer.
       farmerName: 'Farmer',
     );
 
@@ -492,6 +569,475 @@ class _AddProductPageState extends State<AddProductPage> {
 }
 
 // --------------------------------------------------
+// MY PRODUCTS
+// --------------------------------------------------
+
+class MyProductsPage extends StatefulWidget {
+  const MyProductsPage({super.key});
+
+  @override
+  State<MyProductsPage> createState() => _MyProductsPageState();
+}
+
+class _MyProductsPageState extends State<MyProductsPage> {
+  List<Product> get farmerProducts {
+    return ProductStore.products
+        .where((product) => product.farmerName == 'Farmer')
+        .toList();
+  }
+
+  void _deleteProduct(Product product) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete Product'),
+          content: Text(
+            'Are you sure you want to delete "${product.name}"?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('Cancel'),
+            ),
+
+            ElevatedButton(
+              onPressed: () {
+                ProductStore.deleteProduct(product.id);
+
+                Navigator.pop(context);
+
+                setState(() {});
+
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Product deleted successfully.',
+                    ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _editProduct(Product product) {
+    final nameController =
+        TextEditingController(text: product.name);
+
+    final priceController =
+        TextEditingController(
+      text: product.price.toString(),
+    );
+
+    final quantityController =
+        TextEditingController(
+      text: product.quantity.toString(),
+    );
+
+    final descriptionController =
+        TextEditingController(
+      text: product.description,
+    );
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Edit Product'),
+
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Product Name',
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                TextField(
+                  controller: priceController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Price',
+                    prefixText: '₵ ',
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                TextField(
+                  controller: quantityController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Quantity',
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                TextField(
+                  controller: descriptionController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cancel'),
+            ),
+
+            ElevatedButton(
+              onPressed: () {
+                final name =
+                    nameController.text.trim();
+
+                final price =
+                    double.tryParse(
+                  priceController.text.trim(),
+                );
+
+                final quantity =
+                    int.tryParse(
+                  quantityController.text.trim(),
+                );
+
+                final description =
+                    descriptionController.text.trim();
+
+                if (name.isEmpty ||
+                    price == null ||
+                    quantity == null ||
+                    description.isEmpty ||
+                    price <= 0 ||
+                    quantity <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Please enter valid product details.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+
+                final updatedProduct = Product(
+                  id: product.id,
+                  name: name,
+                  price: price,
+                  quantity: quantity,
+                  description: description,
+                  farmerName: product.farmerName,
+                );
+
+                ProductStore.updateProduct(
+                  updatedProduct,
+                );
+
+                Navigator.pop(dialogContext);
+
+                setState(() {});
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Product updated successfully.',
+                    ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final products = farmerProducts;
+
+    if (products.isEmpty) {
+      return const SafeArea(
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(25),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.inventory_2_outlined,
+                  size: 80,
+                  color: AppColors.primary,
+                ),
+
+                SizedBox(height: 20),
+
+                Text(
+                  'No Products Yet',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                SizedBox(height: 8),
+
+                Text(
+                  'Products you add will appear here.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const Text(
+            'My Products',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            '${products.length} product${products.length == 1 ? '' : 's'} listed',
+            style: const TextStyle(
+              color: Colors.grey,
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          ...products.map(
+            (product) => Card(
+              margin: const EdgeInsets.only(
+                bottom: 15,
+              ),
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 55,
+                          height: 55,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary
+                                .withOpacity(0.12),
+                            borderRadius:
+                                BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.agriculture,
+                            color: AppColors.primary,
+                            size: 30,
+                          ),
+                        ),
+
+                        const SizedBox(width: 15),
+
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                product.name,
+                                style: const TextStyle(
+                                  fontSize: 19,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+
+                              const SizedBox(height: 5),
+
+                              Text(
+                                '₵${product.price.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                  color:
+                                      AppColors.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        PopupMenuButton<String>(
+                          onSelected: (value) {
+                            if (value == 'edit') {
+                              _editProduct(product);
+                            }
+
+                            if (value == 'delete') {
+                              _deleteProduct(product);
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.edit_outlined),
+                                  SizedBox(width: 10),
+                                  Text('Edit'),
+                                ],
+                              ),
+                            ),
+
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.red,
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'Delete',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    Text(
+                      product.description,
+                      style: const TextStyle(
+                        color: Colors.grey,
+                      ),
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.inventory_2_outlined,
+                          size: 20,
+                          color: Colors.grey,
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        Text(
+                          'Available quantity: ${product.quantity}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              _editProduct(product);
+                            },
+                            icon: const Icon(
+                              Icons.edit_outlined,
+                            ),
+                            label: const Text('Edit'),
+                          ),
+                        ),
+
+                        const SizedBox(width: 10),
+
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              _deleteProduct(product);
+                            },
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.red,
+                            ),
+                            label: const Text(
+                              'Delete',
+                              style: TextStyle(
+                                color: Colors.red,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --------------------------------------------------
 // ORDERS
 // --------------------------------------------------
 
@@ -503,7 +1049,10 @@ class FarmerOrdersPage extends StatefulWidget {
 }
 
 class _FarmerOrdersPageState extends State<FarmerOrdersPage> {
-  void _updateOrderStatus(Order order, String newStatus) {
+  void _updateOrderStatus(
+    Order order,
+    String newStatus,
+  ) {
     setState(() {
       order.status = newStatus;
     });
@@ -689,42 +1238,32 @@ class _FarmerOrdersPageState extends State<FarmerOrdersPage> {
       child: ListView.builder(
         padding: const EdgeInsets.all(20),
         itemCount: orders.length,
-
         itemBuilder: (context, index) {
           final order = orders[index];
 
-          final statusColor = _statusColor(
-            order.status,
-          );
+          final statusColor =
+              _statusColor(order.status);
 
-          final buttons = _statusButtons(
-            order,
-          );
+          final buttons =
+              _statusButtons(order);
 
           return Card(
             margin: const EdgeInsets.only(
               bottom: 16,
             ),
-
             elevation: 2,
-
             child: Padding(
               padding: const EdgeInsets.all(16),
-
               child: Column(
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
-
                 children: [
-                  // ORDER HEADER
                   Row(
                     mainAxisAlignment:
                         MainAxisAlignment.spaceBetween,
-
                     children: [
                       Text(
                         'Order #${order.id.substring(order.id.length - 6)}',
-
                         style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
@@ -737,18 +1276,14 @@ class _FarmerOrdersPageState extends State<FarmerOrdersPage> {
                           horizontal: 10,
                           vertical: 5,
                         ),
-
                         decoration: BoxDecoration(
                           color: statusColor
                               .withOpacity(0.15),
-
                           borderRadius:
                               BorderRadius.circular(20),
                         ),
-
                         child: Text(
                           order.status,
-
                           style: TextStyle(
                             color: statusColor,
                             fontWeight:
@@ -761,7 +1296,6 @@ class _FarmerOrdersPageState extends State<FarmerOrdersPage> {
 
                   const SizedBox(height: 15),
 
-                  // PRODUCTS
                   const Text(
                     'Products',
                     style: TextStyle(
@@ -777,12 +1311,10 @@ class _FarmerOrdersPageState extends State<FarmerOrdersPage> {
                           const EdgeInsets.only(
                         bottom: 6,
                       ),
-
                       child: Row(
                         mainAxisAlignment:
                             MainAxisAlignment
                                 .spaceBetween,
-
                         children: [
                           Expanded(
                             child: Text(
@@ -800,12 +1332,9 @@ class _FarmerOrdersPageState extends State<FarmerOrdersPage> {
 
                   const Divider(),
 
-                  // TOTAL
                   Row(
                     mainAxisAlignment:
-                        MainAxisAlignment
-                            .spaceBetween,
-
+                        MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
                         'Order Total',
@@ -817,9 +1346,7 @@ class _FarmerOrdersPageState extends State<FarmerOrdersPage> {
 
                       Text(
                         '₵${order.total.toStringAsFixed(2)}',
-
-                        style:
-                            const TextStyle(
+                        style: const TextStyle(
                           fontWeight:
                               FontWeight.bold,
                           color:
@@ -831,17 +1358,13 @@ class _FarmerOrdersPageState extends State<FarmerOrdersPage> {
 
                   const SizedBox(height: 10),
 
-                  // DELIVERY ADDRESS
                   Text(
                     'Delivery: ${order.deliveryAddress}',
-
-                    style:
-                        const TextStyle(
+                    style: const TextStyle(
                       color: Colors.grey,
                     ),
                   ),
 
-                  // STATUS BUTTONS
                   if (buttons.isNotEmpty) ...[
                     const SizedBox(height: 15),
 
@@ -858,7 +1381,6 @@ class _FarmerOrdersPageState extends State<FarmerOrdersPage> {
     );
   }
 }
-
 
 // --------------------------------------------------
 // PROFILE
@@ -911,7 +1433,9 @@ class FarmerProfilePage extends StatelessWidget {
             child: Column(
               children: [
                 const ListTile(
-                  leading: Icon(Icons.person_outline),
+                  leading: Icon(
+                    Icons.person_outline,
+                  ),
                   title: Text('Name'),
                   subtitle: Text('Farmer'),
                 ),
@@ -919,15 +1443,21 @@ class FarmerProfilePage extends StatelessWidget {
                 const Divider(height: 1),
 
                 const ListTile(
-                  leading: Icon(Icons.email_outlined),
+                  leading: Icon(
+                    Icons.email_outlined,
+                  ),
                   title: Text('Email'),
-                  subtitle: Text('farmer@example.com'),
+                  subtitle: Text(
+                    'farmer@example.com',
+                  ),
                 ),
 
                 const Divider(height: 1),
 
                 const ListTile(
-                  leading: Icon(Icons.location_on_outlined),
+                  leading: Icon(
+                    Icons.location_on_outlined,
+                  ),
                   title: Text('Location'),
                   subtitle: Text('Ghana'),
                 ),
@@ -961,7 +1491,8 @@ class FarmerProfilePage extends StatelessWidget {
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const LoginScreen(),
+                    builder: (_) =>
+                        const LoginScreen(),
                   ),
                   (route) => false,
                 );
