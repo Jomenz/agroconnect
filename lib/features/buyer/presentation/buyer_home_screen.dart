@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:agroconnect/core/constants/app_colors.dart';
 import 'package:agroconnect/features/product/data/product_store.dart';
 import 'package:agroconnect/features/product/models/product.dart';
-import 'package:agroconnect/features/cart/data/cart_store.dart';
 import 'package:agroconnect/features/cart/presentation/cart_screen.dart';
 import 'package:agroconnect/features/order/presentation/orders_screen.dart';
 import 'package:agroconnect/features/product/presentation/product_details_screen.dart';
