@@ -121,9 +121,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     // SAVE USER TO SHARED PREFERENCES
-    await UserStore.addUser(user);
+   // SAVE USER TO SHARED PREFERENCES
+final saved = await UserStore.addUser(user);
 
-    if (!mounted) return;
+debugPrint('REGISTRATION SAVE RESULT: $saved');
+
+if (!saved) {
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Unable to save account. Please try again.',
+      ),
+    ),
+  );
+
+  return;
+}
+
+if (!mounted) return;
 
     // GO TO BUYER OR FARMER SCREEN
     if (selectedRole == "Buyer") {

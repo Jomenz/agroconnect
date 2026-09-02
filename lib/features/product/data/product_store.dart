@@ -11,6 +11,8 @@ class ProductStore {
       quantity: 20,
       description: 'Fresh farm tomatoes.',
       farmerName: 'Demo Farmer',
+      allowNegotiation: true,
+      minimumPrice: 20.00,
     ),
     Product(
       id: 'demo_002',
@@ -19,6 +21,7 @@ class ProductStore {
       quantity: 30,
       description: 'Quality locally grown maize.',
       farmerName: 'Demo Farmer',
+      allowNegotiation: false,
     ),
     Product(
       id: 'demo_003',
@@ -27,6 +30,8 @@ class ProductStore {
       quantity: 25,
       description: 'Fresh and sweet mangoes.',
       farmerName: 'Demo Farmer',
+      allowNegotiation: true,
+      minimumPrice: 12.00,
     ),
     Product(
       id: 'demo_004',
@@ -35,27 +40,102 @@ class ProductStore {
       quantity: 40,
       description: 'Fresh farm potatoes.',
       farmerName: 'Demo Farmer',
+      allowNegotiation: false,
     ),
   ];
 
-  static void addProduct(Product product) {
+  // --------------------------------------------------
+  // ADD PRODUCT
+  // --------------------------------------------------
+
+  static bool addProduct(Product product) {
+    if (!_isValidProduct(product)) {
+      return false;
+    }
+
     products.add(product);
+    return true;
   }
 
-  static void updateProduct(Product updatedProduct) {
+  // --------------------------------------------------
+  // UPDATE PRODUCT
+  // --------------------------------------------------
+
+  static bool updateProduct(Product updatedProduct) {
     final index = products.indexWhere(
       (product) => product.id == updatedProduct.id,
     );
 
-    if (index != -1) {
-      products[index] = updatedProduct;
+    if (index == -1) {
+      return false;
     }
+
+    if (!_isValidProduct(updatedProduct)) {
+      return false;
+    }
+
+    products[index] = updatedProduct;
+    return true;
   }
 
-  static void deleteProduct(String productId) {
+  // --------------------------------------------------
+  // VALIDATE PRODUCT
+  // --------------------------------------------------
+
+  static bool _isValidProduct(Product product) {
+    // Product price must be positive.
+    if (product.price <= 0) {
+      return false;
+    }
+
+    // Product quantity must be positive.
+    if (product.quantity <= 0) {
+      return false;
+    }
+
+    // Product name must not be empty.
+    if (product.name.trim().isEmpty) {
+      return false;
+    }
+
+    // Product description must not be empty.
+    if (product.description.trim().isEmpty) {
+      return false;
+    }
+
+    // If negotiation is enabled,
+    // a valid minimum price must be provided.
+    if (product.allowNegotiation) {
+      if (product.minimumPrice == null) {
+        return false;
+      }
+
+      if (product.minimumPrice! <= 0) {
+        return false;
+      }
+
+      // Minimum price cannot be greater than
+      // the original listed price.
+      if (product.minimumPrice! > product.price) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  // --------------------------------------------------
+  // DELETE PRODUCT
+  // --------------------------------------------------
+
+  static bool deleteProduct(String productId) {
+    final initialLength = products.length;
+
     products.removeWhere(
       (product) => product.id == productId,
     );
+
+    return products.length < initialLength;
   }
 
   // --------------------------------------------------
@@ -76,13 +156,146 @@ class ProductStore {
 
     final product = products[index];
 
+    // Quantity must be positive.
+    if (quantity <= 0) {
+      return false;
+    }
+
     // Prevent stock from becoming negative.
-    if (quantity <= 0 || quantity > product.quantity) {
+    if (quantity > product.quantity) {
       return false;
     }
 
     product.quantity -= quantity;
 
     return true;
+  }
+
+  // --------------------------------------------------
+  // RESTORE PRODUCT STOCK
+  // --------------------------------------------------
+
+  static bool restoreStock(
+    String productId,
+    int quantity,
+  ) {
+    final index = products.indexWhere(
+      (product) => product.id == productId,
+    );
+
+    if (index == -1) {
+      return false;
+    }
+
+    if (quantity <= 0) {
+      return false;
+    }
+
+    products[index].quantity += quantity;
+
+    return true;
+  }
+
+  // --------------------------------------------------
+  // CHECK NEGOTIATED PRICE
+  // --------------------------------------------------
+
+  static bool isNegotiatedPriceValid(
+    String productId,
+    double proposedPrice,
+  ) {
+    final product = getProduct(productId);
+
+    if (product == null) {
+      return false;
+    }
+
+    // Proposed price must be greater than zero.
+    if (proposedPrice <= 0) {
+      return false;
+    }
+
+    // Negotiation must be enabled.
+    if (!product.allowNegotiation) {
+      return false;
+    }
+
+    // Negotiation requires a minimum price.
+    if (product.minimumPrice == null) {
+      return false;
+    }
+
+    // Buyer cannot offer below the farmer's minimum.
+    if (proposedPrice < product.minimumPrice!) {
+      return false;
+    }
+
+    // Buyer cannot offer more than the listed price.
+    if (proposedPrice > product.price) {
+      return false;
+    }
+
+    return true;
+  }
+
+  // --------------------------------------------------
+  // GET PRODUCT
+  // --------------------------------------------------
+
+  static Product? getProduct(String productId) {
+    for (final product in products) {
+      if (product.id == productId) {
+        return product;
+      }
+    }
+
+    return null;
+  }
+
+  // --------------------------------------------------
+  // GET PRODUCT BY NAME
+  // --------------------------------------------------
+
+  static Product? getProductByName(String productName) {
+    for (final product in products) {
+      if (product.name == productName) {
+        return product;
+      }
+    }
+
+    return null;
+  }
+
+  // --------------------------------------------------
+  // GET NEGOTIATION MINIMUM PRICE
+  // --------------------------------------------------
+
+  static double? getMinimumPrice(String productId) {
+    final product = getProduct(productId);
+
+    if (product == null) {
+      return null;
+    }
+
+    if (!product.allowNegotiation) {
+      return null;
+    }
+
+    return product.minimumPrice;
+  }
+
+  // --------------------------------------------------
+  // CHECK IF PRODUCT ALLOWS NEGOTIATION
+  // --------------------------------------------------
+
+  static bool canNegotiate(String productId) {
+    final product = getProduct(productId);
+
+    if (product == null) {
+      return false;
+    }
+
+    return product.allowNegotiation &&
+        product.minimumPrice != null;
   }
 }

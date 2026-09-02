@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+
 import 'package:agroconnect/core/constants/app_colors.dart';
 import 'package:agroconnect/features/cart/data/cart_store.dart';
 import 'package:agroconnect/features/order/data/order_store.dart';
 import 'package:agroconnect/features/order/models/order.dart';
 import 'package:agroconnect/features/product/data/product_store.dart';
+import 'package:agroconnect/features/negotiation/data/negotiation_store.dart';
 import 'package:agroconnect/features/buyer/presentation/buyer_home_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
 
   @override
-  State<CheckoutScreen> createState() => _CheckoutScreenState();
+  State<CheckoutScreen> createState() =>
+      _CheckoutScreenState();
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
@@ -19,26 +22,121 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   String fulfillmentMethod = 'Delivery';
 
+  bool isPlacingOrder = false;
+
   @override
   void dispose() {
     addressController.dispose();
     super.dispose();
   }
 
-  // --------------------------------------------------
+  // ==================================================
+  // CART ITEMS
+  // ==================================================
+
+  List<CartItem> get cartItems {
+    return CartStore.items.toList();
+  }
+
+  // ==================================================
+  // ITEMS ELIGIBLE FOR CHECKOUT
+  // ==================================================
+  //
+  // No negotiation:
+  //     -> allowed
+  //
+  // Accepted:
+  //     -> allowed using negotiated price
+  //
+  // Rejected:
+  //     -> allowed using original price
+  //
+  // Pending:
+  //     -> locked
+  //
+  // Countered:
+  //     -> locked
+
+  List<CartItem> get checkoutItems {
+    return CartStore.items.where((cartItem) {
+      return NegotiationStore.canCheckoutProduct(
+        cartItem.product.id,
+      );
+    }).toList();
+  }
+
+  // ==================================================
+  // PENDING / COUNTERED ITEMS
+  // ==================================================
+
+  List<CartItem> get waitingItems {
+    return CartStore.items.where((cartItem) {
+      return NegotiationStore.hasPendingNegotiation(
+        cartItem.product.id,
+      );
+    }).toList();
+  }
+
+  // ==================================================
+  // CHECKOUT TOTAL
+  // ==================================================
+
+  double get checkoutTotal {
+    return checkoutItems.fold<double>(
+      0,
+      (sum, item) => sum + item.totalPrice,
+    );
+  }
+
+  // ==================================================
+  // SHOW MESSAGE
+  // ==================================================
+
+  void _showMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    final messenger =
+        ScaffoldMessenger.of(context);
+
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(
+            milliseconds: 2200,
+          ),
+        ),
+      );
+  }
+
+  // ==================================================
   // PLACE ORDER
-  // --------------------------------------------------
+  // ==================================================
 
   void _placeOrder() {
+    if (isPlacingOrder) {
+      return;
+    }
+
     // --------------------------------------------------
-    // 1. CHECK CART
+    // 1. GET ELIGIBLE ITEMS
     // --------------------------------------------------
 
-    if (CartStore.items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Your cart is empty.'),
-        ),
+    final itemsToCheckout =
+        checkoutItems;
+
+    if (itemsToCheckout.isEmpty) {
+      _showMessage(
+        waitingItems.isNotEmpty
+            ? 'Your products with pending or countered '
+              'negotiations must be resolved before checkout.'
+            : 'There are no products currently available '
+              'for checkout.',
       );
       return;
     }
@@ -47,35 +145,68 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     // 2. CHECK DELIVERY ADDRESS
     // --------------------------------------------------
 
+    final address =
+        addressController.text.trim();
+
     if (fulfillmentMethod == 'Delivery' &&
-        addressController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please enter your delivery address.',
-          ),
-        ),
+        address.isEmpty) {
+      _showMessage(
+        'Please enter your delivery address.',
       );
       return;
     }
 
     // --------------------------------------------------
-    // 3. CHECK STOCK BEFORE CREATING ORDER
+    // 3. RECHECK CURRENT STOCK
     // --------------------------------------------------
 
-    for (final cartItem in CartStore.items) {
-      final product = ProductStore.products.firstWhere(
-        (product) => product.id == cartItem.product.id,
-        orElse: () => cartItem.product,
+    for (final cartItem in itemsToCheckout) {
+      final product =
+          ProductStore.getProduct(
+        cartItem.product.id,
       );
 
-      if (cartItem.quantity > product.quantity) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Not enough stock for ${product.name}. '
-              'Only ${product.quantity} available.',
-            ),
+      if (product == null) {
+        _showMessage(
+          '${cartItem.product.name} is no longer available.',
+        );
+        return;
+      }
+
+      if (product.quantity <= 0) {
+        _showMessage(
+          '${product.name} is out of stock.',
+        );
+        return;
+      }
+
+      if (cartItem.quantity >
+          product.quantity) {
+        _showMessage(
+          'Not enough stock for ${product.name}. '
+          'Only ${product.quantity} available.',
+        );
+        return;
+      }
+    }
+
+    // --------------------------------------------------
+    // 4. RECHECK NEGOTIATION STATUS
+    // --------------------------------------------------
+    //
+    // The farmer may have responded while this screen
+    // was open.
+
+    for (final cartItem in itemsToCheckout) {
+      final allowed =
+          NegotiationStore.canCheckoutProduct(
+        cartItem.product.id,
+      );
+
+      if (!allowed) {
+        _showMessage(
+          NegotiationStore.checkoutBlockMessage(
+            cartItem.product.id,
           ),
         );
         return;
@@ -83,19 +214,67 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     // --------------------------------------------------
-    // 4. CREATE ORDER ITEMS
+    // 5. VALIDATE NEGOTIATED PRICES
     // --------------------------------------------------
 
-    final orderItems = CartStore.items.map((item) {
-      return OrderItem(
-        productName: item.product.name,
-        price: item.product.price,
-        quantity: item.quantity,
+    for (final cartItem in itemsToCheckout) {
+      if (!cartItem.isNegotiated) {
+        continue;
+      }
+
+      final negotiatedPrice =
+          cartItem.negotiatedPrice;
+
+      if (negotiatedPrice == null) {
+        continue;
+      }
+
+      final valid =
+          ProductStore.isNegotiatedPriceValid(
+        cartItem.product.id,
+        negotiatedPrice,
       );
-    }).toList();
+
+      if (!valid) {
+        _showMessage(
+          'The negotiated price for '
+          '${cartItem.product.name} is no longer valid.',
+        );
+        return;
+      }
+    }
 
     // --------------------------------------------------
-    // 5. CREATE ORDER
+    // 6. CREATE ORDER ITEMS
+    // --------------------------------------------------
+
+    final orderItems =
+        itemsToCheckout.map(
+      (cartItem) {
+        return OrderItem(
+          productName:
+              cartItem.product.name,
+          price:
+              cartItem.effectivePrice,
+          quantity:
+              cartItem.quantity,
+        );
+      },
+    ).toList();
+
+    // --------------------------------------------------
+    // 7. CALCULATE ORDER TOTAL
+    // --------------------------------------------------
+
+    final orderTotal =
+        orderItems.fold<double>(
+      0,
+      (sum, item) =>
+          sum + item.total,
+    );
+
+    // --------------------------------------------------
+    // 8. CREATE ORDER
     // --------------------------------------------------
 
     final order = Order(
@@ -103,325 +282,837 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           .millisecondsSinceEpoch
           .toString(),
       items: orderItems,
-      total: CartStore.total,
+      total: orderTotal,
       deliveryAddress:
           fulfillmentMethod == 'Delivery'
-              ? addressController.text.trim()
+              ? address
               : 'Customer will pick up',
-      fulfillmentMethod: fulfillmentMethod,
+      fulfillmentMethod:
+          fulfillmentMethod,
+      status: 'Pending',
       date: DateTime.now(),
     );
 
+    setState(() {
+      isPlacingOrder = true;
+    });
+
     // --------------------------------------------------
-    // 6. DEDUCT STOCK
+    // 9. REDUCE STOCK
     // --------------------------------------------------
 
-    for (final cartItem in CartStore.items) {
-      final success = ProductStore.reduceStock(
+    for (final cartItem in itemsToCheckout) {
+      final success =
+          ProductStore.reduceStock(
         cartItem.product.id,
         cartItem.quantity,
       );
 
       if (!success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Unable to update stock for ${cartItem.product.name}.',
-            ),
-          ),
+        if (mounted) {
+          setState(() {
+            isPlacingOrder = false;
+          });
+        }
+
+        _showMessage(
+          'Unable to update stock for '
+          '${cartItem.product.name}. '
+          'Please try again.',
         );
+
         return;
       }
     }
 
     // --------------------------------------------------
-    // 7. SAVE ORDER
+    // 10. SAVE ORDER
     // --------------------------------------------------
 
     OrderStore.addOrder(order);
 
     // --------------------------------------------------
-    // 8. CLEAR CART
+    // 11. REMOVE ONLY CHECKED-OUT ITEMS
+    // --------------------------------------------------
+    //
+    // Pending/countered negotiation items stay in cart.
+
+    for (final cartItem in itemsToCheckout) {
+      CartStore.removeItem(cartItem);
+    }
+
+    // --------------------------------------------------
+    // 12. SUCCESS MESSAGE
     // --------------------------------------------------
 
-    CartStore.clearCart();
+    _showMessage(
+      'Order placed successfully.',
+    );
 
     // --------------------------------------------------
-    // 9. RETURN TO BUYER DASHBOARD
+    // 13. RETURN TO BUYER DASHBOARD
     // --------------------------------------------------
 
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
-        builder: (_) => const BuyerHomeScreen(),
+        builder: (_) =>
+            const BuyerHomeScreen(),
       ),
       (route) => false,
     );
   }
 
+  // ==================================================
+  // BUILD
+  // ==================================================
+
   @override
   Widget build(BuildContext context) {
+    final items =
+        checkoutItems;
+
+    final pendingItems =
+        waitingItems;
+
     final bool isDelivery =
-        fulfillmentMethod == 'Delivery';
+        fulfillmentMethod ==
+            'Delivery';
+
+    final bool hasCheckoutItems =
+        items.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Checkout'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.white,
+        title:
+            const Text('Checkout'),
+        backgroundColor:
+            AppColors.primary,
+        foregroundColor:
+            AppColors.white,
       ),
 
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+      body:
+          SingleChildScrollView(
+        padding:
+            const EdgeInsets.all(20),
 
-        child: Column(
+        child:
+            Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
 
           children: [
-            // --------------------------------------------------
-            // FULFILLMENT METHOD
-            // --------------------------------------------------
+            // ==================================================
+            // PENDING / COUNTERED NEGOTIATIONS
+            // ==================================================
 
-            const Text(
-              'Fulfillment Method',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+            if (pendingItems.isNotEmpty) ...[
+              _buildWaitingItemsCard(
+                pendingItems,
               ),
-            ),
 
-            const SizedBox(height: 15),
-
-            // DELIVERY
-            Card(
-              child: RadioListTile<String>(
-                value: 'Delivery',
-                groupValue: fulfillmentMethod,
-
-                onChanged: (value) {
-                  setState(() {
-                    fulfillmentMethod = value!;
-                  });
-                },
-
-                title: const Text(
-                  'Delivery',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                subtitle: const Text(
-                  'Have your order delivered to you.',
-                ),
-
-                secondary: const Icon(
-                  Icons.local_shipping_outlined,
-                  color: AppColors.primary,
-                ),
+              const SizedBox(
+                height: 25,
               ),
-            ),
+            ],
 
-            // PICKUP
-            Card(
-              child: RadioListTile<String>(
-                value: 'Pickup',
-                groupValue: fulfillmentMethod,
+            // ==================================================
+            // NO ELIGIBLE ITEMS
+            // ==================================================
 
-                onChanged: (value) {
-                  setState(() {
-                    fulfillmentMethod = value!;
-                  });
-                },
-
-                title: const Text(
-                  'Pickup',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                subtitle: const Text(
-                  'Collect your order from the farmer.',
-                ),
-
-                secondary: const Icon(
-                  Icons.storefront_outlined,
-                  color: AppColors.primary,
-                ),
+            if (!hasCheckoutItems) ...[
+              _buildNoEligibleItems(
+                pendingItems,
               ),
-            ),
+            ] else ...[
+              // ==================================================
+              // FULFILLMENT METHOD
+              // ==================================================
 
-            const SizedBox(height: 25),
-
-            // --------------------------------------------------
-            // DELIVERY ADDRESS
-            // --------------------------------------------------
-
-            if (isDelivery) ...[
               const Text(
-                'Delivery Address',
+                'Fulfillment Method',
                 style: TextStyle(
                   fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(height: 12),
-
-              TextField(
-                controller: addressController,
-                maxLines: 3,
-
-                decoration: InputDecoration(
-                  hintText:
-                      'Enter your delivery address',
-
-                  prefixIcon: const Icon(
-                    Icons.location_on_outlined,
-                  ),
-
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(12),
-                  ),
-                ),
+              const SizedBox(
+                height: 15,
               ),
 
-              const SizedBox(height: 30),
-            ],
-
-            // --------------------------------------------------
-            // PICKUP INFORMATION
-            // --------------------------------------------------
-
-            if (!isDelivery) ...[
+              // DELIVERY
               Card(
-                color:
-                    AppColors.primary.withOpacity(0.08),
+                child:
+                    RadioListTile<String>(
+                  value:
+                      'Delivery',
 
-                child: const Padding(
-                  padding: EdgeInsets.all(16),
+                  groupValue:
+                      fulfillmentMethod,
 
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.storefront,
-                        color: AppColors.primary,
-                        size: 30,
+                  onChanged:
+                      isPlacingOrder
+                          ? null
+                          : (value) {
+                              if (value ==
+                                  null) {
+                                return;
+                              }
+
+                              setState(() {
+                                fulfillmentMethod =
+                                    value;
+                              });
+                            },
+
+                  title:
+                      const Text(
+                    'Delivery',
+                    style:
+                        TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+
+                  subtitle:
+                      const Text(
+                    'Have your order delivered to you.',
+                  ),
+
+                  secondary:
+                      const Icon(
+                    Icons
+                        .local_shipping_outlined,
+                    color:
+                        AppColors.primary,
+                  ),
+                ),
+              ),
+
+              // PICKUP
+              Card(
+                child:
+                    RadioListTile<String>(
+                  value:
+                      'Pickup',
+
+                  groupValue:
+                      fulfillmentMethod,
+
+                  onChanged:
+                      isPlacingOrder
+                          ? null
+                          : (value) {
+                              if (value ==
+                                  null) {
+                                return;
+                              }
+
+                              setState(() {
+                                fulfillmentMethod =
+                                    value;
+                              });
+                            },
+
+                  title:
+                      const Text(
+                    'Pickup',
+                    style:
+                        TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+
+                  subtitle:
+                      const Text(
+                    'Collect your order from the farmer.',
+                  ),
+
+                  secondary:
+                      const Icon(
+                    Icons
+                        .storefront_outlined,
+                    color:
+                        AppColors.primary,
+                  ),
+                ),
+              ),
+
+              const SizedBox(
+                height: 25,
+              ),
+
+              // ==================================================
+              // DELIVERY ADDRESS
+              // ==================================================
+
+              if (isDelivery) ...[
+                const Text(
+                  'Delivery Address',
+                  style:
+                      TextStyle(
+                    fontSize: 20,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 12,
+                ),
+
+                TextField(
+                  controller:
+                      addressController,
+                  enabled:
+                      !isPlacingOrder,
+                  maxLines: 3,
+                  decoration:
+                      InputDecoration(
+                    hintText:
+                        'Enter your delivery address',
+                    prefixIcon:
+                        const Icon(
+                      Icons
+                          .location_on_outlined,
+                    ),
+                    border:
+                        OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(
+                        12,
                       ),
+                    ),
+                  ),
+                ),
 
-                      SizedBox(width: 12),
+                const SizedBox(
+                  height: 30,
+                ),
+              ],
 
-                      Expanded(
-                        child: Text(
-                          'You will collect this order directly from the farmer.',
-                          style: TextStyle(
-                            fontSize: 15,
+              // ==================================================
+              // PICKUP INFORMATION
+              // ==================================================
+
+              if (!isDelivery) ...[
+                Card(
+                  color:
+                      AppColors.primary
+                          .withValues(
+                    alpha: 0.08,
+                  ),
+                  child:
+                      const Padding(
+                    padding:
+                        EdgeInsets.all(16),
+                    child:
+                        Row(
+                      children: [
+                        Icon(
+                          Icons.storefront,
+                          color:
+                              AppColors.primary,
+                          size: 30,
+                        ),
+                        SizedBox(
+                          width: 12,
+                        ),
+                        Expanded(
+                          child:
+                              Text(
+                            'You will collect this order directly from the farmer.',
+                            style:
+                                TextStyle(
+                              fontSize:
+                                  15,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                ),
+
+                const SizedBox(
+                  height: 30,
+                ),
+              ],
+
+              // ==================================================
+              // ORDER SUMMARY
+              // ==================================================
+
+              const Text(
+                'Order Summary',
+                style:
+                    TextStyle(
+                  fontSize: 20,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(height: 30),
-            ],
-
-            // --------------------------------------------------
-            // ORDER SUMMARY
-            // --------------------------------------------------
-
-            const Text(
-              'Order Summary',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+              const SizedBox(
+                height: 15,
               ),
-            ),
 
-            const SizedBox(height: 15),
+              ...items.map(
+                (item) {
+                  final bool negotiated =
+                      item.isNegotiated;
 
-            ...CartStore.items.map(
-              (item) => ListTile(
+                  return ListTile(
+                    contentPadding:
+                        EdgeInsets.zero,
+
+                    title:
+                        Text(
+                      item.product.name,
+                    ),
+
+                    subtitle:
+                        Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${item.quantity} × '
+                          '₵${item.effectivePrice.toStringAsFixed(2)}',
+                        ),
+
+                        if (negotiated)
+                          const Text(
+                            'Negotiated price',
+                            style:
+                                TextStyle(
+                              color:
+                                  AppColors.primary,
+                              fontWeight:
+                                  FontWeight.w600,
+                              fontSize:
+                                  12,
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    trailing:
+                        Text(
+                      '₵${item.totalPrice.toStringAsFixed(2)}',
+                      style:
+                          const TextStyle(
+                        fontWeight:
+                            FontWeight.w600,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const Divider(),
+
+              // ==================================================
+              // TOTAL
+              // ==================================================
+
+              ListTile(
                 contentPadding:
                     EdgeInsets.zero,
 
-                title: Text(
-                  item.product.name,
-                ),
-
-                subtitle: Text(
-                  '${item.quantity} × ₵${item.product.price.toStringAsFixed(2)}',
-                ),
-
-                trailing: Text(
-                  '₵${item.totalPrice.toStringAsFixed(2)}',
-                ),
-              ),
-            ),
-
-            const Divider(),
-
-            // --------------------------------------------------
-            // TOTAL
-            // --------------------------------------------------
-
-            ListTile(
-              contentPadding:
-                  EdgeInsets.zero,
-
-              title: const Text(
-                'Total',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              trailing: Text(
-                '₵${CartStore.total.toStringAsFixed(2)}',
-
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            // --------------------------------------------------
-            // PLACE ORDER BUTTON
-            // --------------------------------------------------
-
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-
-              child: ElevatedButton(
-                onPressed: _placeOrder,
-
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      AppColors.primary,
-                  foregroundColor:
-                      AppColors.white,
-                ),
-
-                child: const Text(
-                  'Place Order',
-                  style: TextStyle(
+                title:
+                    const Text(
+                  'Total',
+                  style:
+                      TextStyle(
                     fontSize: 18,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                trailing:
+                    Text(
+                  '₵${checkoutTotal.toStringAsFixed(2)}',
+                  style:
+                      const TextStyle(
+                    fontSize: 18,
+                    fontWeight:
+                        FontWeight.bold,
+                    color:
+                        AppColors.primary,
                   ),
                 ),
               ),
-            ),
+
+              const SizedBox(
+                height: 30,
+              ),
+
+              // ==================================================
+              // PLACE ORDER
+              // ==================================================
+
+              SizedBox(
+                width:
+                    double.infinity,
+                height:
+                    55,
+
+                child:
+                    ElevatedButton(
+                  onPressed:
+                      isPlacingOrder
+                          ? null
+                          : _placeOrder,
+
+                  style:
+                      ElevatedButton
+                          .styleFrom(
+                    backgroundColor:
+                        AppColors.primary,
+                    foregroundColor:
+                        AppColors.white,
+                    disabledBackgroundColor:
+                        Colors.grey.shade400,
+                  ),
+
+                  child:
+                      isPlacingOrder
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child:
+                                  CircularProgressIndicator(
+                                strokeWidth:
+                                    2,
+                                color:
+                                    AppColors.white,
+                              ),
+                            )
+                          : Text(
+                              'Place Order • '
+                              '₵${checkoutTotal.toStringAsFixed(2)}',
+                              style:
+                                  const TextStyle(
+                                fontSize:
+                                    17,
+                              ),
+                            ),
+                ),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  // ==================================================
+  // NO ELIGIBLE ITEMS
+  // ==================================================
+
+  Widget _buildNoEligibleItems(
+    List<CartItem> pendingItems,
+  ) {
+    return Container(
+      width:
+          double.infinity,
+
+      padding:
+          const EdgeInsets.all(22),
+
+      decoration:
+          BoxDecoration(
+        color:
+            Colors.orange.withValues(
+          alpha: 0.06,
+        ),
+
+        borderRadius:
+            BorderRadius.circular(16),
+
+        border:
+            Border.all(
+          color:
+              Colors.orange.withValues(
+            alpha: 0.2,
+          ),
+        ),
+      ),
+
+      child:
+          Column(
+        children: [
+          const Icon(
+            Icons.lock_outline,
+            size: 65,
+            color:
+                Colors.orange,
+          ),
+
+          const SizedBox(
+            height: 15,
+          ),
+
+          const Text(
+            'Checkout Locked',
+            textAlign:
+                TextAlign.center,
+            style:
+                TextStyle(
+              fontSize: 22,
+              fontWeight:
+                  FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(
+            height: 10,
+          ),
+
+          Text(
+            pendingItems.isNotEmpty
+                ? 'All products in your cart have '
+                  'pending or countered negotiations. '
+                  'Wait for those negotiations to be resolved '
+                  'before placing an order.'
+                : 'There are no products available '
+                  'for checkout.',
+            textAlign:
+                TextAlign.center,
+            style:
+                const TextStyle(
+              color:
+                  Colors.grey,
+              height:
+                  1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================================================
+  // WAITING ITEMS CARD
+  // ==================================================
+
+  Widget _buildWaitingItemsCard(
+    List<CartItem> pendingItems,
+  ) {
+    return Container(
+      width:
+          double.infinity,
+
+      padding:
+          const EdgeInsets.all(16),
+
+      decoration:
+          BoxDecoration(
+        color:
+            Colors.orange.withValues(
+          alpha: 0.08,
+        ),
+
+        borderRadius:
+            BorderRadius.circular(14),
+
+        border:
+            Border.all(
+          color:
+              Colors.orange.withValues(
+            alpha: 0.22,
+          ),
+        ),
+      ),
+
+      child:
+          Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons
+                    .hourglass_empty,
+                color:
+                    Colors.orange,
+              ),
+
+              SizedBox(
+                width: 8,
+              ),
+
+              Expanded(
+                child:
+                    Text(
+                  'Negotiations in progress',
+                  style:
+                      TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                    color:
+                        Colors.orange,
+                    fontSize:
+                        16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(
+            height: 10,
+          ),
+
+          const Text(
+            'These products remain in your cart, but '
+            'they cannot be checked out until the '
+            'negotiation is resolved.',
+            style:
+                TextStyle(
+              color:
+                  Colors.grey,
+              height:
+                  1.4,
+            ),
+          ),
+
+          const SizedBox(
+            height: 14,
+          ),
+
+          ...pendingItems.map(
+            (item) {
+              final negotiation =
+                  NegotiationStore
+                      .findByProduct(
+                item.product.id,
+              );
+
+              final String status =
+                  negotiation?.status ??
+                      'Pending';
+
+              final String quantityText =
+                  '${item.quantity} unit'
+                  '${item.quantity == 1 ? '' : 's'}';
+
+              return Container(
+                margin:
+                    const EdgeInsets.only(
+                  bottom: 8,
+                ),
+
+                padding:
+                    const EdgeInsets.all(10),
+
+                decoration:
+                    BoxDecoration(
+                  color:
+                      Colors.white,
+                  borderRadius:
+                      BorderRadius.circular(
+                    10,
+                  ),
+                ),
+
+                child:
+                    Row(
+                  children: [
+                    const Icon(
+                      Icons
+                          .agriculture,
+                      size: 20,
+                      color:
+                          Colors.orange,
+                    ),
+
+                    const SizedBox(
+                      width: 10,
+                    ),
+
+                    Expanded(
+                      child:
+                          Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.product.name,
+                            style:
+                                const TextStyle(
+                              fontWeight:
+                                  FontWeight.w600,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            height: 3,
+                          ),
+
+                          Text(
+                            quantityText,
+                            style:
+                                const TextStyle(
+                              fontSize:
+                                  12,
+                              color:
+                                  Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Container(
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        horizontal: 9,
+                        vertical: 5,
+                      ),
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            Colors.orange
+                                .withValues(
+                          alpha: 0.1,
+                        ),
+                        borderRadius:
+                            BorderRadius
+                                .circular(
+                          20,
+                        ),
+                      ),
+                      child:
+                          Text(
+                        status,
+                        style:
+                            const TextStyle(
+                          color:
+                              Colors.orange,
+                          fontWeight:
+                              FontWeight.w600,
+                          fontSize:
+                              12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

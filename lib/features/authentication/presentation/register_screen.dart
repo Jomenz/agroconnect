@@ -119,8 +119,22 @@ Future<void> _createAccount() async {
       password: password,
       role: selectedRole,
     );
+final saved = await UserStore.addUser(user);
 
-    await UserStore.addUser(user);
+if (!saved) {
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Unable to save account. Please try again.',
+      ),
+    ),
+  );
+
+  return;
+}
+    
 
     // GO TO CORRESPONDING HOME SCREEN
     if (selectedRole == "Buyer") {

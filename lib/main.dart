@@ -7,5 +7,27 @@ Future<void> main() async {
 
   await UserStore.loadUsers();
 
+  debugPrint(
+    'LOADED USERS: ${UserStore.users.length}',
+  );
+
+  for (final user in UserStore.users) {
+    debugPrint(
+      'USER: ${user.email} | ROLE: ${user.role}',
+    );
+  }
+
+  final savedUsers = await UserStore.getSavedUsers();
+
+  debugPrint(
+    'SAVED USERS IN SHARED PREFERENCES: ${savedUsers.length}',
+  );
+
+  for (final savedUser in savedUsers) {
+    debugPrint(
+      'SAVED: $savedUser',
+    );
+  }
+
   runApp(const AgroConnectApp());
 }

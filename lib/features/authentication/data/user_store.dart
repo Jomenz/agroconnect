@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 class User {
@@ -14,9 +16,31 @@ class User {
     required this.password,
     required this.role,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'email': email,
+      'phone': phone,
+      'password': password,
+      'role': role,
+    };
+  }
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      password: json['password']?.toString() ?? '',
+      role: json['role']?.toString() ?? 'Buyer',
+    );
+  }
 }
 
 class UserStore {
+  static const String _usersKey = 'agroconnect_users';
+
   static final List<User> users = [
     User(
       name: 'Agroconect Admin',
@@ -28,18 +52,76 @@ class UserStore {
   ];
 
   // --------------------------------------------------
-  // CURRENT USER
+  // LOAD USERS
   // --------------------------------------------------
 
-  static User? currentUser;
+  static Future<void> loadUsers() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final savedUsers = prefs.getStringList(_usersKey);
+
+    // Always keep the hard-coded admin.
+    users.removeWhere(
+      (user) => user.role != 'Admin',
+    );
+
+    if (savedUsers == null || savedUsers.isEmpty) {
+      return;
+    }
+
+    for (final savedUser in savedUsers) {
+      try {
+        final decoded = jsonDecode(savedUser);
+
+        if (decoded is Map<String, dynamic>) {
+          final user = User.fromJson(decoded);
+
+          // Prevent duplicate users.
+          final alreadyExists = users.any(
+            (existingUser) =>
+                existingUser.email.toLowerCase() ==
+                user.email.toLowerCase(),
+          );
+
+          if (!alreadyExists) {
+            users.add(user);
+          }
+        }
+      } catch (_) {
+        // Ignore corrupted user records.
+      }
+    }
+  }
 
   // --------------------------------------------------
   // ADD USER
   // --------------------------------------------------
 
-  static Future<void> addUser(User user) async {
+  static Future<bool> addUser(User user) async {
+    // Prevent duplicate email addresses.
+    if (emailExists(user.email)) {
+      return false;
+    }
+
     users.add(user);
-    await _saveUsers();
+
+    final prefs = await SharedPreferences.getInstance();
+
+    final savedUsers = users
+        .where(
+          (user) => user.role != 'Admin',
+        )
+        .map(
+          (user) => jsonEncode(user.toJson()),
+        )
+        .toList();
+
+    final saved = await prefs.setStringList(
+      _usersKey,
+      savedUsers,
+    );
+
+    return saved;
   }
 
   // --------------------------------------------------
@@ -50,92 +132,41 @@ class UserStore {
     String email,
     String password,
   ) {
-    try {
-      return users.firstWhere(
-        (user) =>
-            user.email.toLowerCase() ==
-                email.toLowerCase() &&
-            user.password == password,
-      );
-    } catch (e) {
-      return null;
+    final cleanEmail = email.trim().toLowerCase();
+    final cleanPassword = password.trim();
+
+    for (final user in users) {
+      if (user.email.trim().toLowerCase() ==
+              cleanEmail &&
+          user.password.trim() == cleanPassword) {
+        return user;
+      }
     }
+
+    return null;
   }
 
   // --------------------------------------------------
-  // EMAIL EXISTS
+  // CHECK EMAIL
   // --------------------------------------------------
 
   static bool emailExists(String email) {
+    final cleanEmail = email.trim().toLowerCase();
+
     return users.any(
       (user) =>
-          user.email.toLowerCase() ==
-          email.toLowerCase(),
+          user.email.trim().toLowerCase() ==
+          cleanEmail,
     );
   }
 
   // --------------------------------------------------
-  // LOGIN
+  // DEBUG INFORMATION
   // --------------------------------------------------
 
-  static Future<void> login(User user) async {
-    currentUser = user;
+  static Future<List<String>> getSavedUsers() async {
+    final prefs = await SharedPreferences.getInstance();
 
-    final prefs =
-        await SharedPreferences.getInstance();
-
-    await prefs.setString(
-      'current_user_email',
-      user.email,
-    );
-  }
-
-  // --------------------------------------------------
-  // LOGOUT
-  // --------------------------------------------------
-
-  static Future<void> logout() async {
-    currentUser = null;
-
-    final prefs =
-        await SharedPreferences.getInstance();
-
-    await prefs.remove('current_user_email');
-  }
-
-  // --------------------------------------------------
-  // LOAD USERS
-  // --------------------------------------------------
-
-  static Future<void> loadUsers() async {
-    final prefs =
-        await SharedPreferences.getInstance();
-
-    final savedEmail =
-        prefs.getString('current_user_email');
-
-    if (savedEmail != null) {
-      try {
-        currentUser = users.firstWhere(
-          (user) =>
-              user.email.toLowerCase() ==
-              savedEmail.toLowerCase(),
-        );
-      } catch (e) {
-        currentUser = null;
-      }
-    }
-  }
-
-  // --------------------------------------------------
-  // SAVE USERS
-  // --------------------------------------------------
-
-  static Future<void> _saveUsers() async {
-    // User persistence is already handled
-    // by the existing UserStore implementation.
-    //
-    // We are intentionally leaving this method
-    // available for the next persistence improvement.
+    return prefs.getStringList(_usersKey) ?? [];
   }
 }

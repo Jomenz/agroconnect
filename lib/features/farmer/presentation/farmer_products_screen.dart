@@ -23,6 +23,11 @@ class _FarmerProductsScreenState
       text: product.price.toString(),
     );
 
+    final minimumPriceController =
+        TextEditingController(
+      text: product.minimumPrice?.toString() ?? '',
+    );
+
     final quantityController =
         TextEditingController(
       text: product.quantity.toString(),
@@ -33,212 +38,343 @@ class _FarmerProductsScreenState
       text: product.description,
     );
 
+    bool allowNegotiation =
+        product.allowNegotiation;
+
     showDialog(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            'Edit Product',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    labelText: 'Product Name',
-                    prefixIcon: const Icon(
-                      Icons.shopping_basket_outlined,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(12),
-                    ),
-                  ),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text(
+                'Edit Product',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
                 ),
+              ),
 
-                const SizedBox(height: 15),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
 
-                TextField(
-                  controller: priceController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Price',
-                    prefixText: '₵ ',
-                    prefixIcon: const Icon(
-                      Icons.payments_outlined,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 15),
-
-                TextField(
-                  controller: quantityController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Available Quantity',
-                    prefixIcon: const Icon(
-                      Icons.inventory_2_outlined,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 15),
-
-                TextField(
-                  controller: descriptionController,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: 'Description',
-                    alignLabelWithHint: true,
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.only(bottom: 35),
-                      child: Icon(
-                        Icons.description_outlined,
+                    // PRODUCT NAME
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        labelText: 'Product Name',
+                        prefixIcon: const Icon(
+                          Icons.shopping_basket_outlined,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(12),
+                        ),
                       ),
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(12),
+
+                    const SizedBox(height: 15),
+
+                    // ORIGINAL PRICE
+                    TextField(
+                      controller: priceController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Price',
+                        prefixText: '₵ ',
+                        prefixIcon: const Icon(
+                          Icons.payments_outlined,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
+
+                    const SizedBox(height: 15),
+
+                    // NEGOTIATION SWITCH
+                    Card(
+                      elevation: 0,
+                      color: AppColors.primary.withValues(
+                        alpha: 0.08,
+                      ),
+                      child: SwitchListTile(
+                        title: const Text(
+                          'Allow Price Negotiation',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          allowNegotiation
+                              ? 'Buyers can make offers.'
+                              : 'Product has a fixed price.',
+                        ),
+                        value: allowNegotiation,
+                        activeThumbColor:
+                            AppColors.primary,
+                        onChanged: (value) {
+                          setDialogState(() {
+                            allowNegotiation = value;
+                          });
+                        },
+                      ),
+                    ),
+
+                    // MINIMUM NEGOTIATION PRICE
+                    if (allowNegotiation) ...[
+                      const SizedBox(height: 15),
+
+                      TextField(
+                        controller:
+                            minimumPriceController,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText:
+                              'Minimum Acceptable Price',
+                          prefixText: '₵ ',
+                          prefixIcon: const Icon(
+                            Icons.price_check_outlined,
+                          ),
+                          helperText:
+                              'Buyers cannot negotiate below this price.',
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 15),
+
+                    // QUANTITY
+                    TextField(
+                      controller: quantityController,
+                      keyboardType:
+                          TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Available Quantity',
+                        prefixIcon: const Icon(
+                          Icons.inventory_2_outlined,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    // DESCRIPTION
+                    TextField(
+                      controller:
+                          descriptionController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        labelText: 'Description',
+                        alignLabelWithHint: true,
+                        prefixIcon: const Padding(
+                          padding:
+                              EdgeInsets.only(bottom: 35),
+                          child: Icon(
+                            Icons.description_outlined,
+                          ),
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              actions: [
+
+                // CANCEL
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Cancel'),
+                ),
+
+                // SAVE
+                ElevatedButton(
+                  onPressed: () {
+                    final name =
+                        nameController.text.trim();
+
+                    final price =
+                        double.tryParse(
+                      priceController.text.trim(),
+                    );
+
+                    final minimumPrice =
+                        double.tryParse(
+                      minimumPriceController.text.trim(),
+                    );
+
+                    final quantity =
+                        int.tryParse(
+                      quantityController.text.trim(),
+                    );
+
+                    final description =
+                        descriptionController.text.trim();
+
+                    // BASIC VALIDATION
+                    if (name.isEmpty ||
+                        price == null ||
+                        quantity == null ||
+                        description.isEmpty) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please fill in all product details.',
+                          ),
+                        ),
+                      );
+
+                      return;
+                    }
+
+                    // PRICE VALIDATION
+                    if (price <= 0) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Price must be greater than 0.',
+                          ),
+                        ),
+                      );
+
+                      return;
+                    }
+
+                    // QUANTITY VALIDATION
+                    if (quantity <= 0) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Quantity must be greater than 0.',
+                          ),
+                        ),
+                      );
+
+                      return;
+                    }
+
+                    // NEGOTIATION VALIDATION
+                    if (allowNegotiation) {
+                      if (minimumPrice == null) {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Please enter a minimum acceptable price.',
+                            ),
+                          ),
+                        );
+
+                        return;
+                      }
+
+                      if (minimumPrice <= 0) {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Minimum price must be greater than 0.',
+                            ),
+                          ),
+                        );
+
+                        return;
+                      }
+
+                      if (minimumPrice >= price) {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Minimum price must be lower than the original price.',
+                            ),
+                          ),
+                        );
+
+                        return;
+                      }
+                    }
+
+                    final updatedProduct = Product(
+                      id: product.id,
+                      name: name,
+                      price: price,
+                      quantity: quantity,
+                      description: description,
+                      farmerName: product.farmerName,
+                      allowNegotiation:
+                          allowNegotiation,
+                      minimumPrice:
+                          allowNegotiation
+                              ? minimumPrice
+                              : null,
+                    );
+
+                    ProductStore.updateProduct(
+                      updatedProduct,
+                    );
+
+                    Navigator.pop(dialogContext);
+
+                    setState(() {});
+
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Product updated successfully!',
+                        ),
+                      ),
+                    );
+                  },
+
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        AppColors.primary,
+                    foregroundColor:
+                        AppColors.white,
+                  ),
+
+                  child: const Text(
+                    'Save Changes',
                   ),
                 ),
               ],
-            ),
-          ),
-
-          actions: [
-
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('Cancel'),
-            ),
-
-            ElevatedButton(
-              onPressed: () {
-
-                final name =
-                    nameController.text.trim();
-
-                final price =
-                    double.tryParse(
-                  priceController.text.trim(),
-                );
-
-                final quantity =
-                    int.tryParse(
-                  quantityController.text.trim(),
-                );
-
-                final description =
-                    descriptionController.text.trim();
-
-                if (name.isEmpty ||
-                    price == null ||
-                    quantity == null ||
-                    description.isEmpty) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Please fill in all product details.',
-                      ),
-                    ),
-                  );
-
-                  return;
-                }
-
-                if (price <= 0) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Price must be greater than 0.',
-                      ),
-                    ),
-                  );
-
-                  return;
-                }
-
-                if (quantity <= 0) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Quantity must be greater than 0.',
-                      ),
-                    ),
-                  );
-
-                  return;
-                }
-
-                final updatedProduct = Product(
-                  id: product.id,
-                  name: name,
-                  price: price,
-                  quantity: quantity,
-                  description: description,
-                  farmerName: product.farmerName,
-                );
-
-                ProductStore.updateProduct(
-                  updatedProduct,
-                );
-
-                Navigator.pop(dialogContext);
-
-                setState(() {});
-
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Product updated successfully!',
-                    ),
-                  ),
-                );
-              },
-
-              style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    AppColors.primary,
-                foregroundColor:
-                    AppColors.white,
-              ),
-
-              child: const Text('Save Changes'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
   }
 
   void _deleteProduct(Product product) {
-
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -266,7 +402,6 @@ class _FarmerProductsScreenState
 
             ElevatedButton(
               onPressed: () {
-
                 ProductStore.deleteProduct(
                   product.id,
                 );
@@ -300,7 +435,6 @@ class _FarmerProductsScreenState
 
   @override
   Widget build(BuildContext context) {
-
     final products = ProductStore.products;
 
     return Scaffold(
@@ -351,7 +485,6 @@ class _FarmerProductsScreenState
               itemCount: products.length,
 
               itemBuilder: (context, index) {
-
                 final product = products[index];
 
                 return Card(
@@ -362,7 +495,8 @@ class _FarmerProductsScreenState
                   elevation: 2,
 
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding:
+                        const EdgeInsets.all(16),
 
                     child: Column(
                       crossAxisAlignment:
@@ -377,11 +511,16 @@ class _FarmerProductsScreenState
                               width: 60,
                               height: 60,
 
-                              decoration: BoxDecoration(
-                                color: AppColors.primary
-                                    .withOpacity(0.1),
+                              decoration:
+                                  BoxDecoration(
+                                color: AppColors
+                                    .primary
+                                    .withValues(
+                                  alpha: 0.1,
+                                ),
                                 borderRadius:
-                                    BorderRadius.circular(12),
+                                    BorderRadius
+                                        .circular(12),
                               ),
 
                               child: const Icon(
@@ -392,12 +531,15 @@ class _FarmerProductsScreenState
                               ),
                             ),
 
-                            const SizedBox(width: 15),
+                            const SizedBox(
+                              width: 15,
+                            ),
 
                             Expanded(
                               child: Column(
                                 crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                    CrossAxisAlignment
+                                        .start,
 
                                 children: [
 
@@ -407,21 +549,26 @@ class _FarmerProductsScreenState
                                         const TextStyle(
                                       fontSize: 19,
                                       fontWeight:
-                                          FontWeight.bold,
+                                          FontWeight
+                                              .bold,
                                     ),
                                   ),
 
-                                  const SizedBox(height: 5),
+                                  const SizedBox(
+                                    height: 5,
+                                  ),
 
                                   Text(
                                     '₵${product.price.toStringAsFixed(2)}',
                                     style:
                                         const TextStyle(
                                       color:
-                                          AppColors.primary,
+                                          AppColors
+                                              .primary,
                                       fontSize: 17,
                                       fontWeight:
-                                          FontWeight.bold,
+                                          FontWeight
+                                              .bold,
                                     ),
                                   ),
                                 ],
@@ -445,7 +592,8 @@ class _FarmerProductsScreenState
                           children: [
 
                             const Icon(
-                              Icons.inventory_2_outlined,
+                              Icons
+                                  .inventory_2_outlined,
                               size: 20,
                               color: Colors.grey,
                             ),
@@ -464,6 +612,62 @@ class _FarmerProductsScreenState
                           ],
                         ),
 
+                        const SizedBox(height: 12),
+
+                        // NEGOTIATION STATUS
+                        Row(
+                          children: [
+
+                            Icon(
+                              product.allowNegotiation
+                                  ? Icons
+                                      .handshake_outlined
+                                  : Icons
+                                      .lock_outline,
+                              size: 20,
+                              color:
+                                  product.allowNegotiation
+                                      ? AppColors.primary
+                                      : Colors.grey,
+                            ),
+
+                            const SizedBox(width: 6),
+
+                            Expanded(
+                              child: Text(
+                                product.allowNegotiation
+                                    ? 'Negotiation allowed'
+                                    : 'Fixed price',
+                                style: TextStyle(
+                                  fontWeight:
+                                      FontWeight.w500,
+                                  color:
+                                      product.allowNegotiation
+                                          ? AppColors
+                                              .primary
+                                          : Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // MINIMUM PRICE
+                        if (product.allowNegotiation &&
+                            product.minimumPrice !=
+                                null) ...[
+                          const SizedBox(height: 6),
+
+                          Text(
+                            'Lowest acceptable price: '
+                            '₵${product.minimumPrice!.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+
                         const SizedBox(height: 15),
 
                         const Divider(),
@@ -474,7 +678,8 @@ class _FarmerProductsScreenState
                           children: [
 
                             Expanded(
-                              child: OutlinedButton.icon(
+                              child:
+                                  OutlinedButton.icon(
                                 onPressed: () {
                                   _showEditProductDialog(
                                     product,
@@ -490,9 +695,11 @@ class _FarmerProductsScreenState
                                 ),
 
                                 style:
-                                    OutlinedButton.styleFrom(
+                                    OutlinedButton
+                                        .styleFrom(
                                   foregroundColor:
-                                      AppColors.primary,
+                                      AppColors
+                                          .primary,
                                 ),
                               ),
                             ),
@@ -500,7 +707,8 @@ class _FarmerProductsScreenState
                             const SizedBox(width: 10),
 
                             Expanded(
-                              child: OutlinedButton.icon(
+                              child:
+                                  OutlinedButton.icon(
                                 onPressed: () {
                                   _deleteProduct(
                                     product,
@@ -508,7 +716,8 @@ class _FarmerProductsScreenState
                                 },
 
                                 icon: const Icon(
-                                  Icons.delete_outline,
+                                  Icons
+                                      .delete_outline,
                                 ),
 
                                 label: const Text(
@@ -516,12 +725,14 @@ class _FarmerProductsScreenState
                                 ),
 
                                 style:
-                                    OutlinedButton.styleFrom(
+                                    OutlinedButton
+                                        .styleFrom(
                                   foregroundColor:
                                       Colors.red,
                                   side:
                                       const BorderSide(
-                                    color: Colors.red,
+                                    color:
+                                        Colors.red,
                                   ),
                                 ),
                               ),
