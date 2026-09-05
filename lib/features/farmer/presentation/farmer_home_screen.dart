@@ -5,6 +5,8 @@ import 'package:agroconnect/features/product/models/product.dart';
 import 'package:agroconnect/features/product/data/product_store.dart';
 import 'package:agroconnect/features/order/data/order_store.dart';
 import 'package:agroconnect/features/authentication/presentation/login_screen.dart';
+import 'package:agroconnect/features/authentication/data/auth_service.dart';
+import 'package:agroconnect/features/product/data/product_firestore_service.dart';
 import 'package:agroconnect/features/order/models/order.dart';
 import 'package:agroconnect/features/farmer/presentation/farmer_products_screen.dart';
 import 'package:agroconnect/features/negotiation/presentation/farmer_negotiations_screen.dart';
@@ -124,20 +126,63 @@ class FarmerHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final farmerProducts = ProductStore.products
-        .where(
-          (product) =>
-              product.farmerName == 'Farmer',
-        )
-        .toList();
+    final farmerId = AuthService.instance.currentUser?.uid ?? '';
 
-    final productCount =
-        farmerProducts.length;
+    return StreamBuilder<List<Product>>(
+      stream: farmerId.isEmpty
+          ? const Stream<List<Product>>.empty()
+          : ProductFirestoreService.instance
+              .farmerProductsStream(farmerId),
+      builder: (context, snapshot) {
+        final farmerProducts = snapshot.data ?? <Product>[];
+        final productCount = farmerProducts.length;
+        final orderCount = OrderStore.orders.length;
 
-    final orderCount =
-        OrderStore.orders.length;
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SafeArea(
+            child: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
 
-    return SafeArea(
+        if (snapshot.hasError) {
+          return SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.cloud_off_outlined,
+                      size: 60,
+                      color: Colors.grey.shade500,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Unable to load your products',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please check your internet connection and try again.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(20),
 
@@ -383,6 +428,8 @@ class FarmerHomePage extends StatelessWidget {
           ],
         ),
       ),
+        );
+      },
     );
   }
 }
@@ -612,7 +659,11 @@ class _AddProductPageState
 
       description: description,
 
-      farmerName: 'Farmer',
+      farmerName: AuthService.instance.currentUser?.name.isNotEmpty == true
+          ? AuthService.instance.currentUser!.name
+          : 'Farmer',
+
+      farmerId: AuthService.instance.currentUser?.uid ?? '',
 
       allowNegotiation:
           allowNegotiation,
@@ -828,7 +879,7 @@ class _AddProductPageState
 
                 value: allowNegotiation,
 
-                activeColor:
+                activeThumbColor:
                     AppColors.primary,
 
                 onChanged: (value) {
@@ -922,448 +973,205 @@ class MyProductsPage extends StatefulWidget {
   const MyProductsPage({super.key});
 
   @override
-  State<MyProductsPage> createState() =>
-      _MyProductsPageState();
+  State<MyProductsPage> createState() => _MyProductsPageState();
 }
 
-class _MyProductsPageState
-    extends State<MyProductsPage> {
-  List<Product> get farmerProducts {
-    return ProductStore.products
-        .where(
-          (product) =>
-              product.farmerName == 'Farmer',
-        )
-        .toList();
+class _MyProductsPageState extends State<MyProductsPage> {
+  String get _farmerId => AuthService.instance.currentUser?.uid ?? '';
+
+  Future<void> _deleteProduct(Product product) async {
+    try {
+      await ProductFirestoreService.instance.deleteProduct(product.id);
+      ProductStore.deleteProduct(product.id);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Product deleted successfully.'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to delete product.'),
+        ),
+      );
+    }
   }
 
-  void _deleteProduct(
-    Product product,
-  ) {
-    showDialog(
-      context: context,
-
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            'Delete Product',
-          ),
-
-          content: Text(
-            'Are you sure you want to delete '
-            '"${product.name}"?',
-          ),
-
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
-              },
-
-              child: const Text(
-                'Cancel',
-              ),
-            ),
-
-            ElevatedButton(
-              onPressed: () {
-                ProductStore.deleteProduct(
-                  product.id,
-                );
-
-                Navigator.pop(
-                  dialogContext,
-                );
-
-                setState(() {});
-
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Product deleted successfully.',
-                    ),
-                  ),
-                );
-              },
-
-              style:
-                  ElevatedButton.styleFrom(
-                backgroundColor:
-                    Colors.red,
-
-                foregroundColor:
-                    Colors.white,
-              ),
-
-              child: const Text(
-                'Delete',
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _editProduct(
-    Product product,
-  ) {
-    final nameController =
-        TextEditingController(
-      text: product.name,
-    );
-
+  Future<void> _editProduct(Product product) async {
+    final nameController = TextEditingController(text: product.name);
     final priceController =
-        TextEditingController(
-      text: product.price.toString(),
-    );
-
+        TextEditingController(text: product.price.toString());
     final quantityController =
-        TextEditingController(
-      text: product.quantity.toString(),
-    );
-
+        TextEditingController(text: product.quantity.toString());
     final descriptionController =
-        TextEditingController(
-      text: product.description,
+        TextEditingController(text: product.description);
+    final minimumPriceController = TextEditingController(
+      text: product.minimumPrice?.toString() ?? '',
     );
 
-    final minimumPriceController =
-        TextEditingController(
-      text:
-          product.minimumPrice
-              ?.toString() ??
-          '',
-    );
+    bool allowNegotiation = product.allowNegotiation;
 
-    bool allowNegotiation =
-        product.allowNegotiation;
-
-    showDialog(
+    await showDialog<void>(
       context: context,
-
       builder: (dialogContext) {
         return StatefulBuilder(
-          builder:
-              (context, setDialogState) {
+          builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text(
-                'Edit Product',
-              ),
-
-              content:
-                  SingleChildScrollView(
+              title: const Text('Edit Product'),
+              content: SingleChildScrollView(
                 child: Column(
-                  mainAxisSize:
-                      MainAxisSize.min,
-
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     TextField(
-                      controller:
-                          nameController,
-
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'Product Name',
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Product Name',
                       ),
                     ),
-
-                    const SizedBox(
-                      height: 12,
-                    ),
-
+                    const SizedBox(height: 12),
                     TextField(
-                      controller:
-                          priceController,
-
-                      keyboardType:
-                          const TextInputType
-                              .numberWithOptions(
+                      controller: priceController,
+                      keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'Original Price',
-                        prefixText:
-                            '₵ ',
+                      decoration: const InputDecoration(
+                        labelText: 'Original Price',
+                        prefixText: '₵ ',
                       ),
                     ),
-
-                    const SizedBox(
-                      height: 12,
-                    ),
-
+                    const SizedBox(height: 12),
                     TextField(
-                      controller:
-                          quantityController,
-
-                      keyboardType:
-                          TextInputType.number,
-
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'Quantity',
+                      controller: quantityController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Quantity',
                       ),
                     ),
-
-                    const SizedBox(
-                      height: 12,
-                    ),
-
+                    const SizedBox(height: 12),
                     TextField(
-                      controller:
-                          descriptionController,
-
+                      controller: descriptionController,
                       maxLines: 3,
-
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'Description',
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
                       ),
                     ),
-
-                    const SizedBox(
-                      height: 10,
-                    ),
-
+                    const SizedBox(height: 10),
                     SwitchListTile(
-                      contentPadding:
-                          EdgeInsets.zero,
-
-                      title: const Text(
-                        'Allow Price Negotiation',
-                      ),
-
-                      subtitle:
-                          const Text(
-                        'Let buyers propose a lower price.',
-                      ),
-
-                      value:
-                          allowNegotiation,
-
-                      activeColor:
-                          AppColors.primary,
-
-                      onChanged:
-                          (value) {
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Allow Price Negotiation'),
+                      value: allowNegotiation,
+                      activeThumbColor: AppColors.primary,
+                      onChanged: (value) {
                         setDialogState(() {
-                          allowNegotiation =
-                              value;
+                          allowNegotiation = value;
                         });
                       },
                     ),
-
                     if (allowNegotiation) ...[
-                      const SizedBox(
-                        height: 8,
-                      ),
-
+                      const SizedBox(height: 8),
                       TextField(
-                        controller:
-                            minimumPriceController,
-
-                        keyboardType:
-                            const TextInputType
-                                .numberWithOptions(
+                        controller: minimumPriceController,
+                        keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
-
-                        decoration:
-                            const InputDecoration(
-                          labelText:
-                              'Minimum Acceptable Price',
-
-                          prefixText:
-                              '₵ ',
-
-                          helperText:
-                              'Buyers cannot go below this price.',
+                        decoration: const InputDecoration(
+                          labelText: 'Minimum Acceptable Price',
+                          prefixText: '₵ ',
                         ),
                       ),
                     ],
                   ],
                 ),
               ),
-
               actions: [
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(
-                      dialogContext,
-                    );
-                  },
-
-                  child: const Text(
-                    'Cancel',
-                  ),
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
                 ),
-
                 ElevatedButton(
-                  onPressed: () {
-                    final name =
-                        nameController
-                            .text
-                            .trim();
-
-                    final price =
-                        double.tryParse(
-                      priceController
-                          .text
-                          .trim(),
-                    );
-
+                  onPressed: () async {
+                    final name = nameController.text.trim();
+                    final price = double.tryParse(priceController.text.trim());
                     final quantity =
-                        int.tryParse(
-                      quantityController
-                          .text
-                          .trim(),
-                    );
-
-                    final description =
-                        descriptionController
-                            .text
-                            .trim();
-
+                        int.tryParse(quantityController.text.trim());
+                    final description = descriptionController.text.trim();
                     final minimumPrice =
-                        double.tryParse(
-                      minimumPriceController
-                          .text
-                          .trim(),
-                    );
+                        double.tryParse(minimumPriceController.text.trim());
 
                     if (name.isEmpty ||
                         price == null ||
                         quantity == null ||
-                        description
-                            .isEmpty ||
+                        description.isEmpty ||
                         price <= 0 ||
                         quantity <= 0) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter valid product details.'),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (allowNegotiation &&
+                        (minimumPrice == null ||
+                            minimumPrice <= 0 ||
+                            minimumPrice >= price)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
-                            'Please enter valid product details.',
+                            'Enter a valid minimum price lower than the original price.',
                           ),
                         ),
                       );
                       return;
                     }
 
-                    if (allowNegotiation) {
-                      if (minimumPrice ==
-                              null ||
-                          minimumPrice <=
-                              0) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Please enter a valid minimum price.',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-
-                      if (minimumPrice >=
-                          price) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Minimum price must be lower than the original price.',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-                    }
-
-                    final updatedProduct =
-                        Product(
+                    final updatedProduct = Product(
                       id: product.id,
-
                       name: name,
-
                       price: price,
-
                       quantity: quantity,
-
-                      description:
-                          description,
-
-                      farmerName:
-                          product.farmerName,
-
-                      allowNegotiation:
-                          allowNegotiation,
-
+                      description: description,
+                      farmerName: product.farmerName,
+                      farmerId: product.farmerId.isNotEmpty
+                          ? product.farmerId
+                          : _farmerId,
+                      allowNegotiation: allowNegotiation,
                       minimumPrice:
-                          allowNegotiation
-                              ? minimumPrice
-                              : null,
+                          allowNegotiation ? minimumPrice : null,
                     );
 
-                    final success =
-                        ProductStore
-                            .updateProduct(
-                      updatedProduct,
-                    );
+                    try {
+                      await ProductFirestoreService.instance
+                          .updateProduct(updatedProduct);
+                      ProductStore.updateProduct(updatedProduct);
 
-                    if (!success) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(
+                      if (!context.mounted) return;
+                      Navigator.pop(dialogContext);
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                            'Unable to update product.',
-                          ),
+                          content: Text('Product updated successfully.'),
                         ),
                       );
-                      return;
-                    }
-
-                    Navigator.pop(
-                      dialogContext,
-                    );
-
-                    setState(() {});
-
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Product updated successfully.',
+                    } catch (_) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Unable to update product.'),
                         ),
-                      ),
-                    );
+                      );
+                    }
                   },
-
-                  style:
-                      ElevatedButton.styleFrom(
-                    backgroundColor:
-                        AppColors.primary,
-
-                    foregroundColor:
-                        AppColors.white,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
                   ),
-
-                  child: const Text(
-                    'Save',
-                  ),
+                  child: const Text('Save'),
                 ),
               ],
             );
@@ -1371,411 +1179,292 @@ class _MyProductsPageState
         );
       },
     );
+
+    nameController.dispose();
+    priceController.dispose();
+    quantityController.dispose();
+    descriptionController.dispose();
+    minimumPriceController.dispose();
+  }
+
+  Widget _buildEmptyState() {
+    return const SafeArea(
+      child: Center(
+        child: Padding(
+          padding: EdgeInsets.all(25),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.inventory_2_outlined,
+                size: 80,
+                color: AppColors.primary,
+              ),
+              SizedBox(height: 20),
+              Text(
+                'No Products Yet',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Products you add will appear here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-    final products =
-        farmerProducts;
-
-    if (products.isEmpty) {
+  Widget build(BuildContext context) {
+    if (_farmerId.isEmpty) {
       return const SafeArea(
         child: Center(
-          child: Padding(
-            padding:
-                EdgeInsets.all(25),
-
-            child: Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-
-              children: [
-                Icon(
-                  Icons.inventory_2_outlined,
-                  size: 80,
-                  color:
-                      AppColors.primary,
-                ),
-
-                SizedBox(height: 20),
-
-                Text(
-                  'No Products Yet',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-
-                SizedBox(height: 8),
-
-                Text(
-                  'Products you add will appear here.',
-                  textAlign:
-                      TextAlign.center,
-
-                  style: TextStyle(
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          child: Text('Farmer account not found.'),
         ),
       );
     }
 
-    return SafeArea(
-      child: ListView(
-        padding:
-            const EdgeInsets.all(20),
-
-        children: [
-          const Text(
-            'My Products',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight:
-                  FontWeight.bold,
+    return StreamBuilder<List<Product>>(
+      stream: ProductFirestoreService.instance
+          .farmerProductsStream(_farmerId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SafeArea(
+            child: Center(
+              child: CircularProgressIndicator(),
             ),
-          ),
+          );
+        }
 
-          const SizedBox(height: 8),
-
-          Text(
-            '${products.length} '
-            'product${products.length == 1 ? '' : 's'} listed',
-
-            style: const TextStyle(
-              color: Colors.grey,
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          ...products.map(
-            (product) => Card(
-              margin:
-                  const EdgeInsets.only(
-                bottom: 15,
-              ),
-
-              elevation: 2,
-
+        if (snapshot.hasError) {
+          return SafeArea(
+            child: Center(
               child: Padding(
-                padding:
-                    const EdgeInsets.all(16),
-
+                padding: const EdgeInsets.all(24),
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
+                    Icon(
+                      Icons.cloud_off_outlined,
+                      size: 60,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Unable to load your products',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Please check your internet connection and try again.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
 
+        final products = snapshot.data ?? <Product>[];
+
+        if (products.isEmpty) {
+          return _buildEmptyState();
+        }
+
+        return SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              const Text(
+                'My Products',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${products.length} product${products.length == 1 ? '' : 's'} listed',
+                style: const TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 20),
+              ...products.map(
+                (product) => Card(
+                  margin: const EdgeInsets.only(bottom: 15),
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 55,
-                          height: 55,
-
-                          decoration:
-                              BoxDecoration(
-                            color: AppColors
-                                .primary
-                                .withValues(
-                              alpha: 0.12,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 55,
+                              height: 55,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.agriculture,
+                                color: AppColors.primary,
+                                size: 30,
+                              ),
                             ),
-
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              12,
+                            const SizedBox(width: 15),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    product.name,
+                                    style: const TextStyle(
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    '₵${product.price.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-
-                          child:
-                              const Icon(
-                            Icons.agriculture,
-                            color:
-                                AppColors.primary,
-                            size: 30,
-                          ),
-                        ),
-
-                        const SizedBox(
-                          width: 15,
-                        ),
-
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
-
-                            children: [
-                              Text(
-                                product.name,
-
-                                style:
-                                    const TextStyle(
-                                  fontSize: 19,
-                                  fontWeight:
-                                      FontWeight.bold,
+                            PopupMenuButton<String>(
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  _editProduct(product);
+                                } else if (value == 'delete') {
+                                  _deleteProduct(product);
+                                }
+                              },
+                              itemBuilder: (context) => const [
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit_outlined),
+                                      SizedBox(width: 10),
+                                      Text('Edit'),
+                                    ],
+                                  ),
                                 ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.delete_outline,
+                                        color: Colors.red,
+                                      ),
+                                      SizedBox(width: 10),
+                                      Text(
+                                        'Delete',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 15),
+                        Text(
+                          product.description,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        const SizedBox(height: 15),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.inventory_2_outlined,
+                              size: 20,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Available quantity: ${product.quantity}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
                               ),
-
-                              const SizedBox(
-                                height: 5,
+                            ),
+                          ],
+                        ),
+                        if (product.allowNegotiation &&
+                            product.minimumPrice != null) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.handshake_outlined,
+                                size: 20,
+                                color: AppColors.primary,
                               ),
-
+                              const SizedBox(width: 8),
                               Text(
-                                '₵${product.price.toStringAsFixed(2)}',
-
-                                style:
-                                    const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                  color:
-                                      AppColors.primary,
+                                'Negotiation: ₵${product.minimumPrice!.toStringAsFixed(2)} minimum',
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-
-                        PopupMenuButton<
-                            String>(
-                          onSelected:
-                              (value) {
-                            if (value ==
-                                'edit') {
-                              _editProduct(
-                                product,
-                              );
-                            }
-
-                            if (value ==
-                                'delete') {
-                              _deleteProduct(
-                                product,
-                              );
-                            }
-                          },
-
-                          itemBuilder:
-                              (context) =>
-                                  const [
-                            PopupMenuItem(
-                              value:
-                                  'edit',
-
-                              child:
-                                  Row(
-                                children: [
-                                  Icon(
-                                    Icons
-                                        .edit_outlined,
-                                  ),
-                                  SizedBox(
-                                      width:
-                                          10),
-                                  Text(
-                                    'Edit',
-                                  ),
-                                ],
+                        ],
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _editProduct(product),
+                                icon: const Icon(Icons.edit_outlined),
+                                label: const Text('Edit'),
                               ),
                             ),
-
-                            PopupMenuItem(
-                              value:
-                                  'delete',
-
-                              child:
-                                  Row(
-                                children: [
-                                  Icon(
-                                    Icons
-                                        .delete_outline,
-                                    color:
-                                        Colors.red,
-                                  ),
-                                  SizedBox(
-                                      width:
-                                          10),
-                                  Text(
-                                    'Delete',
-                                    style:
-                                        TextStyle(
-                                      color:
-                                          Colors.red,
-                                    ),
-                                  ),
-                                ],
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _deleteProduct(product),
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.red,
+                                ),
+                                label: const Text(
+                                  'Delete',
+                                  style: TextStyle(color: Colors.red),
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ],
                     ),
-
-                    const SizedBox(
-                      height: 15,
-                    ),
-
-                    Text(
-                      product.description,
-
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.grey,
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 15,
-                    ),
-
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.inventory_2_outlined,
-                          size: 20,
-                          color:
-                              Colors.grey,
-                        ),
-
-                        const SizedBox(
-                          width: 8,
-                        ),
-
-                        Text(
-                          'Available quantity: '
-                          '${product.quantity}',
-
-                          style:
-                              const TextStyle(
-                            fontWeight:
-                                FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    if (product
-                            .allowNegotiation &&
-                        product.minimumPrice !=
-                            null) ...[
-                      const SizedBox(
-                        height: 10,
-                      ),
-
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons
-                                .handshake_outlined,
-                            size: 20,
-                            color:
-                                AppColors.primary,
-                          ),
-
-                          const SizedBox(
-                            width: 8,
-                          ),
-
-                          Text(
-                            'Negotiation: '
-                            '₵${product.minimumPrice!.toStringAsFixed(2)} minimum',
-
-                            style:
-                                const TextStyle(
-                              color:
-                                  AppColors.primary,
-                              fontWeight:
-                                  FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-
-                    const SizedBox(
-                      height: 12,
-                    ),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child:
-                              OutlinedButton
-                                  .icon(
-                            onPressed: () {
-                              _editProduct(
-                                product,
-                              );
-                            },
-
-                            icon: const Icon(
-                              Icons
-                                  .edit_outlined,
-                            ),
-
-                            label:
-                                const Text(
-                              'Edit',
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(
-                          width: 10,
-                        ),
-
-                        Expanded(
-                          child:
-                              OutlinedButton
-                                  .icon(
-                            onPressed: () {
-                              _deleteProduct(
-                                product,
-                              );
-                            },
-
-                            icon: const Icon(
-                              Icons
-                                  .delete_outline,
-                              color:
-                                  Colors.red,
-                            ),
-
-                            label:
-                                const Text(
-                              'Delete',
-                              style:
-                                  TextStyle(
-                                color:
-                                    Colors.red,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -2284,6 +1973,17 @@ class FarmerProfilePage
   Widget build(
     BuildContext context,
   ) {
+    final currentUser = AuthService.instance.currentUser;
+    final farmerName = currentUser?.name.isNotEmpty == true
+        ? currentUser!.name
+        : 'Farmer';
+    final farmerEmail = currentUser?.email.isNotEmpty == true
+        ? currentUser!.email
+        : 'farmer@example.com';
+    final farmerPhone = currentUser?.phone.isNotEmpty == true
+        ? currentUser!.phone
+        : 'Ghana';
+
     return SafeArea(
       child: ListView(
         padding:
@@ -2323,12 +2023,12 @@ class FarmerProfilePage
             height: 20,
           ),
 
-          const Center(
+          Center(
             child: Text(
-              'Farmer',
+              farmerName,
 
               style:
-                  TextStyle(
+                  const TextStyle(
                 fontSize: 22,
                 fontWeight:
                     FontWeight.bold,
@@ -2343,17 +2043,17 @@ class FarmerProfilePage
           Card(
             child: Column(
               children: [
-                const ListTile(
-                  leading: Icon(
+                ListTile(
+                  leading: const Icon(
                     Icons.person_outline,
                   ),
 
-                  title: Text(
+                  title: const Text(
                     'Name',
                   ),
 
                   subtitle: Text(
-                    'Farmer',
+                    farmerName,
                   ),
                 ),
 
@@ -2361,17 +2061,17 @@ class FarmerProfilePage
                   height: 1,
                 ),
 
-                const ListTile(
-                  leading: Icon(
+                ListTile(
+                  leading: const Icon(
                     Icons.email_outlined,
                   ),
 
-                  title: Text(
+                  title: const Text(
                     'Email',
                   ),
 
                   subtitle: Text(
-                    'farmer@example.com',
+                    farmerEmail,
                   ),
                 ),
 
@@ -2379,17 +2079,17 @@ class FarmerProfilePage
                   height: 1,
                 ),
 
-                const ListTile(
-                  leading: Icon(
-                    Icons.location_on_outlined,
+                ListTile(
+                  leading: const Icon(
+                    Icons.phone_outlined,
                   ),
 
-                  title: Text(
-                    'Location',
+                  title: const Text(
+                    'Phone',
                   ),
 
                   subtitle: Text(
-                    'Ghana',
+                    farmerPhone,
                   ),
                 ),
               ],
@@ -2423,7 +2123,9 @@ class FarmerProfilePage
                 size: 18,
               ),
 
-              onTap: () {
+              onTap: () async {
+                await AuthService.instance.signOut();
+                if (!context.mounted) return;
                 Navigator.pushAndRemoveUntil(
                   context,
 
