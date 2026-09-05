@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:agroconnect/core/constants/app_colors.dart';
-import 'package:agroconnect/features/authentication/data/user_store.dart';
-import 'package:agroconnect/features/authentication/presentation/register_screen.dart';
+import 'package:agroconnect/features/authentication/data/auth_service.dart';
 import 'package:agroconnect/features/buyer/presentation/buyer_home_screen.dart';
 import 'package:agroconnect/features/farmer/presentation/farmer_home_screen.dart';
 import 'package:agroconnect/features/admin/presentation/admin_home_screen.dart';
@@ -14,267 +14,375 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  bool obscurePassword = true;
+  final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController emailController =
-      TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
-  final TextEditingController passwordController =
-      TextEditingController();
+  bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
-    emailController.dispose();
-    passwordController.dispose();
-
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
-  void _login() {
-    final email = emailController.text.trim();
-    final password = passwordController.text;
-
-    // CHECK EMPTY FIELDS
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please enter your email and password.',
-          ),
-        ),
-      );
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    // FIND USER
-    final user = UserStore.findUser(
-      email,
-      password,
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final user = await AuthService.instance.signIn(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      switch (user.role) {
+        case 'Buyer':
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const BuyerHomeScreen(),
+            ),
+            (route) => false,
+          );
+          break;
+
+        case 'Farmer':
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const FarmerHomeScreen(),
+            ),
+            (route) => false,
+          );
+          break;
+
+        case 'Admin':
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const AdminHomeScreen(),
+            ),
+            (route) => false,
+          );
+          break;
+
+        default:
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Unrecognized user role: ${user.role}'),
+            ),
+          );
+      }
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+
+      String errorMessage = 'An error occurred during login.';
+      if (e.code == 'user-not-found' ||
+          e.code == 'wrong-password' ||
+          e.code == 'invalid-credential') {
+        errorMessage = 'Invalid email or password.';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (e.code == 'user-disabled') {
+        errorMessage = 'This account has been disabled.';
+      } else if (e.code == 'network-request-failed') {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (e.message != null && e.message!.isNotEmpty) {
+        errorMessage = e.message!;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login failed: ${e.toString()}'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
+  }
+
+  void _showForgotPasswordDialog() {
+    final emailController = TextEditingController(
+      text: _emailController.text.trim(),
     );
 
-    // INVALID LOGIN
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Invalid email or password.',
-          ),
-        ),
-      );
-      return;
-    }
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        bool sending = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text('Forgot Password?'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Enter your registered email address to receive password reset instructions.',
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: sending
+                      ? null
+                      : () {
+                          emailController.dispose();
+                          Navigator.pop(dialogContext);
+                        },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: sending
+                      ? null
+                      : () async {
+                          final email = emailController.text.trim();
+                          if (email.isEmpty || !email.contains('@')) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please enter a valid email address.'),
+                              ),
+                            );
+                            return;
+                          }
 
-    // ADMIN
-    if (user.role == 'Admin') {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const AdminHomeScreen(),
-        ),
-        (route) => false,
-      );
+                          setDialogState(() {
+                            sending = true;
+                          });
 
-      return;
-    }
+                          try {
+                            await AuthService.instance.sendPasswordResetEmail(email);
+                            if (!dialogContext.mounted) return;
+                            emailController.dispose();
+                            Navigator.pop(dialogContext);
 
-    // FARMER
-    if (user.role == 'Farmer') {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const FarmerHomeScreen(),
-        ),
-        (route) => false,
-      );
-
-      return;
-    }
-
-    // BUYER
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const BuyerHomeScreen(),
-      ),
-      (route) => false,
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Password reset link sent! Please check your email.',
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            setDialogState(() {
+                              sending = false;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error: ${e.toString()}'),
+                              ),
+                            );
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Reset Password'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        iconTheme: const IconThemeData(
-          color: AppColors.black,
-        ),
+        title: const Text('Log In'),
+        centerTitle: true,
       ),
-
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
 
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-
-            children: [
-              const SizedBox(height: 20),
-
-              const Text(
-                "Welcome Back",
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                "Log in to continue using AgroConnect.",
-                style: TextStyle(
-                  color: AppColors.grey,
-                ),
-              ),
-
-              const SizedBox(height: 35),
-
-              // EMAIL
-              TextField(
-                controller: emailController,
-                keyboardType:
-                    TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: "Email",
-                  prefixIcon: const Icon(
-                    Icons.email_outlined,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(12),
+                const Text(
+                  'Welcome Back',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 8),
 
-              // PASSWORD
-              TextField(
-                controller: passwordController,
-                obscureText: obscurePassword,
-                decoration: InputDecoration(
-                  labelText: "Password",
-                  prefixIcon: const Icon(
-                    Icons.lock_outline,
+                const Text(
+                  'Log in to continue using AgroConnect.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: AppColors.grey,
                   ),
+                ),
 
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
+                const SizedBox(height: 40),
+
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-
-                    onPressed: () {
-                      setState(() {
-                        obscurePassword =
-                            !obscurePassword;
-                      });
-                    },
                   ),
+                  validator: (value) {
+                    final email = value?.trim() ?? '';
 
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(12),
-                  ),
-                ),
-              ),
+                    if (email.isEmpty) {
+                      return 'Please enter your email.';
+                    }
 
-              const SizedBox(height: 10),
+                    if (!email.contains('@') || !email.contains('.')) {
+                      return 'Please enter a valid email.';
+                    }
 
-              // FORGOT PASSWORD
-              Align(
-                alignment: Alignment.centerRight,
-
-                child: TextButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Password recovery will be added later.',
-                        ),
-                      ),
-                    );
+                    return null;
                   },
-
-                  child: const Text(
-                    "Forgot Password?",
-                  ),
                 ),
-              ),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-              // LOGIN BUTTON
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-
-                child: ElevatedButton(
-                  onPressed: _login,
-
-                  style:
-                      ElevatedButton.styleFrom(
-                    backgroundColor:
-                        AppColors.primary,
-                    foregroundColor:
-                        AppColors.white,
-                  ),
-
-                  child: const Text(
-                    "Log In",
-                    style: TextStyle(
-                      fontSize: 18,
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _login(),
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
+                  validator: (value) {
+                    if ((value ?? '').isEmpty) {
+                      return 'Please enter your password.';
+                    }
+
+                    return null;
+                  },
                 ),
-              ),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 12),
 
-              // CREATE ACCOUNT
-              Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
-
-                children: [
-                  const Text(
-                    "Don't have an account?",
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _showForgotPasswordDialog,
+                    child: const Text('Forgot Password?'),
                   ),
+                ),
 
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              const RegisterScreen(),
-                        ),
-                      );
-                    },
+                const SizedBox(height: 18),
 
-                    child: const Text(
-                      "Create Account",
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Log In',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
