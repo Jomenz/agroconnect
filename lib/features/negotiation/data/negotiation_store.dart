@@ -1,8 +1,38 @@
+import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/negotiation.dart';
 import 'package:agroconnect/features/cart/data/cart_store.dart';
 
 class NegotiationStore {
+  NegotiationStore._();
+
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final List<Negotiation> negotiations = [];
+  static bool _isInitialized = false;
+
+  // ------------------------------------------------------------
+  // INITIALIZE FIRESTORE LISTENER
+  // ------------------------------------------------------------
+
+  static Future<void> initialize() async {
+    if (_isInitialized) return;
+    _isInitialized = true;
+
+    try {
+      _firestore.collection('negotiations').snapshots().listen((snapshot) {
+        final loaded = snapshot.docs.map((doc) {
+          return Negotiation.fromMap(doc.data(), doc.id);
+        }).toList();
+
+        negotiations.clear();
+        negotiations.addAll(loaded);
+      }, onError: (error) {
+        debugPrint('NegotiationStore Firestore listener error: $error');
+      });
+    } catch (e) {
+      debugPrint('NegotiationStore initialize failed: $e');
+    }
+  }
 
   // ------------------------------------------------------------
   // CREATE
@@ -21,7 +51,21 @@ class NegotiationStore {
       return false;
     }
 
-    negotiations.add(negotiation);
+    final index = negotiations.indexWhere((n) => n.id == negotiation.id);
+    if (index != -1) {
+      negotiations[index] = negotiation;
+    } else {
+      negotiations.add(negotiation);
+    }
+
+    _firestore
+        .collection('negotiations')
+        .doc(negotiation.id)
+        .set(negotiation.toMap())
+        .catchError((error) {
+      debugPrint('Firestore addNegotiation error: $error');
+    });
+
     return true;
   }
 
@@ -41,13 +85,15 @@ class NegotiationStore {
 
   static List<Negotiation> findByBuyer(String buyerName) {
     return negotiations
-        .where((negotiation) => negotiation.buyerName == buyerName)
+        .where((negotiation) =>
+            negotiation.buyerName.toLowerCase() == buyerName.toLowerCase())
         .toList();
   }
 
   static List<Negotiation> findByFarmer(String farmerName) {
     return negotiations
-        .where((negotiation) => negotiation.farmerName == farmerName)
+        .where((negotiation) =>
+            negotiation.farmerName.toLowerCase() == farmerName.toLowerCase())
         .toList();
   }
 
@@ -145,8 +191,7 @@ class NegotiationStore {
       return false;
     }
 
-    return price > 0 &&
-        price <= negotiation.originalPrice;
+    return price > 0 && price <= negotiation.originalPrice;
   }
 
   // ------------------------------------------------------------
@@ -163,6 +208,15 @@ class NegotiationStore {
     }
 
     negotiations[index] = negotiation;
+
+    _firestore
+        .collection('negotiations')
+        .doc(negotiation.id)
+        .set(negotiation.toMap(), SetOptions(merge: true))
+        .catchError((error) {
+      debugPrint('Firestore updateNegotiation error: $error');
+    });
+
     return true;
   }
 
@@ -177,6 +231,15 @@ class NegotiationStore {
     }
 
     negotiation.status = newStatus;
+
+    _firestore
+        .collection('negotiations')
+        .doc(negotiationId)
+        .update({'status': newStatus})
+        .catchError((error) {
+      debugPrint('Firestore updateStatus error: $error');
+    });
+
     return true;
   }
 
@@ -194,14 +257,24 @@ class NegotiationStore {
       return false;
     }
 
-    if (counterOffer <= 0 ||
-        counterOffer > negotiation.originalPrice) {
+    if (counterOffer <= 0 || counterOffer > negotiation.originalPrice) {
       return false;
     }
 
     negotiation.farmerCounterOffer = counterOffer;
     negotiation.agreedPrice = null;
     negotiation.status = 'Countered';
+
+    _firestore
+        .collection('negotiations')
+        .doc(negotiationId)
+        .update({
+      'farmerCounterOffer': counterOffer,
+      'agreedPrice': null,
+      'status': 'Countered',
+    }).catchError((error) {
+      debugPrint('Firestore setFarmerCounterOffer error: $error');
+    });
 
     return true;
   }
@@ -226,11 +299,9 @@ class NegotiationStore {
     }
 
     final agreedPrice =
-        negotiation.farmerCounterOffer ??
-        negotiation.buyerOffer;
+        negotiation.farmerCounterOffer ?? negotiation.buyerOffer;
 
-    if (agreedPrice <= 0 ||
-        agreedPrice > negotiation.originalPrice) {
+    if (agreedPrice <= 0 || agreedPrice > negotiation.originalPrice) {
       return false;
     }
 
@@ -242,6 +313,16 @@ class NegotiationStore {
       negotiation.productId,
       agreedPrice,
     );
+
+    _firestore
+        .collection('negotiations')
+        .doc(negotiationId)
+        .update({
+      'agreedPrice': agreedPrice,
+      'status': 'Accepted',
+    }).catchError((error) {
+      debugPrint('Firestore acceptNegotiation error: $error');
+    });
 
     return true;
   }
@@ -265,6 +346,17 @@ class NegotiationStore {
       negotiation.productId,
     );
 
+    _firestore
+        .collection('negotiations')
+        .doc(negotiationId)
+        .update({
+      'status': 'Rejected',
+      'agreedPrice': null,
+      'farmerCounterOffer': null,
+    }).catchError((error) {
+      debugPrint('Firestore rejectNegotiation error: $error');
+    });
+
     return true;
   }
 
@@ -282,6 +374,15 @@ class NegotiationStore {
     }
 
     negotiations.removeAt(index);
+
+    _firestore
+        .collection('negotiations')
+        .doc(negotiationId)
+        .delete()
+        .catchError((error) {
+      debugPrint('Firestore deleteNegotiation error: $error');
+    });
+
     return true;
   }
 

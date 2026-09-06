@@ -1,9 +1,16 @@
+import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/product.dart';
 
 class ProductStore {
   ProductStore._();
 
-  static final List<Product> products = [
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  static final List<Product> products = [];
+  static bool _isInitialized = false;
+
+  static final List<Product> _defaultInitialProducts = [
     Product(
       id: 'demo_001',
       name: 'Tomatoes',
@@ -11,6 +18,7 @@ class ProductStore {
       quantity: 20,
       description: 'Fresh farm tomatoes.',
       farmerName: 'Demo Farmer',
+      farmerId: 'demo_farmer_01',
       allowNegotiation: true,
       minimumPrice: 20.00,
     ),
@@ -21,6 +29,7 @@ class ProductStore {
       quantity: 30,
       description: 'Quality locally grown maize.',
       farmerName: 'Demo Farmer',
+      farmerId: 'demo_farmer_01',
       allowNegotiation: false,
     ),
     Product(
@@ -30,6 +39,7 @@ class ProductStore {
       quantity: 25,
       description: 'Fresh and sweet mangoes.',
       farmerName: 'Demo Farmer',
+      farmerId: 'demo_farmer_01',
       allowNegotiation: true,
       minimumPrice: 12.00,
     ),
@@ -40,9 +50,57 @@ class ProductStore {
       quantity: 40,
       description: 'Fresh farm potatoes.',
       farmerName: 'Demo Farmer',
+      farmerId: 'demo_farmer_01',
       allowNegotiation: false,
     ),
   ];
+
+  // --------------------------------------------------
+  // INITIALIZE FIRESTORE LISTENER
+  // --------------------------------------------------
+
+  static Future<void> initialize() async {
+    if (_isInitialized) return;
+    _isInitialized = true;
+
+    // Populate initial products in local list as fallback
+    if (products.isEmpty) {
+      products.addAll(_defaultInitialProducts);
+    }
+
+    try {
+      _firestore.collection('products').snapshots().listen((snapshot) {
+        if (snapshot.docs.isEmpty) {
+          // If Firestore collection is empty, seed with initial demo products
+          _seedDefaultProducts();
+        } else {
+          final loaded = snapshot.docs.map((doc) {
+            return Product.fromMap(doc.data(), doc.id);
+          }).toList();
+
+          products.clear();
+          products.addAll(loaded);
+        }
+      }, onError: (error) {
+        debugPrint('ProductStore Firestore listener error: $error');
+      });
+    } catch (e) {
+      debugPrint('ProductStore initialize failed: $e');
+    }
+  }
+
+  static Future<void> _seedDefaultProducts() async {
+    try {
+      final batch = _firestore.batch();
+      for (final product in _defaultInitialProducts) {
+        final docRef = _firestore.collection('products').doc(product.id);
+        batch.set(docRef, product.toMap());
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Failed to seed default products: $e');
+    }
+  }
 
   // --------------------------------------------------
   // ADD PRODUCT
@@ -53,7 +111,22 @@ class ProductStore {
       return false;
     }
 
-    products.add(product);
+    final index = products.indexWhere((p) => p.id == product.id);
+    if (index != -1) {
+      products[index] = product;
+    } else {
+      products.add(product);
+    }
+
+    // Persist to Cloud Firestore
+    _firestore
+        .collection('products')
+        .doc(product.id)
+        .set(product.toMap())
+        .catchError((error) {
+      debugPrint('Firestore addProduct error: $error');
+    });
+
     return true;
   }
 
@@ -75,6 +148,16 @@ class ProductStore {
     }
 
     products[index] = updatedProduct;
+
+    // Update in Cloud Firestore
+    _firestore
+        .collection('products')
+        .doc(updatedProduct.id)
+        .set(updatedProduct.toMap(), SetOptions(merge: true))
+        .catchError((error) {
+      debugPrint('Firestore updateProduct error: $error');
+    });
+
     return true;
   }
 
@@ -83,28 +166,22 @@ class ProductStore {
   // --------------------------------------------------
 
   static bool _isValidProduct(Product product) {
-    // Product price must be positive.
     if (product.price <= 0) {
       return false;
     }
 
-    // Product quantity must be positive.
     if (product.quantity <= 0) {
       return false;
     }
 
-    // Product name must not be empty.
     if (product.name.trim().isEmpty) {
       return false;
     }
 
-    // Product description must not be empty.
     if (product.description.trim().isEmpty) {
       return false;
     }
 
-    // If negotiation is enabled,
-    // a valid minimum price must be provided.
     if (product.allowNegotiation) {
       if (product.minimumPrice == null) {
         return false;
@@ -114,8 +191,6 @@ class ProductStore {
         return false;
       }
 
-      // Minimum price cannot be greater than
-      // the original listed price.
       if (product.minimumPrice! > product.price) {
         return false;
       }
@@ -134,6 +209,15 @@ class ProductStore {
     products.removeWhere(
       (product) => product.id == productId,
     );
+
+    // Delete in Cloud Firestore
+    _firestore
+        .collection('products')
+        .doc(productId)
+        .delete()
+        .catchError((error) {
+      debugPrint('Firestore deleteProduct error: $error');
+    });
 
     return products.length < initialLength;
   }
@@ -156,17 +240,23 @@ class ProductStore {
 
     final product = products[index];
 
-    // Quantity must be positive.
     if (quantity <= 0) {
       return false;
     }
 
-    // Prevent stock from becoming negative.
     if (quantity > product.quantity) {
       return false;
     }
 
     product.quantity -= quantity;
+
+    _firestore
+        .collection('products')
+        .doc(productId)
+        .update({'quantity': product.quantity})
+        .catchError((error) {
+      debugPrint('Firestore reduceStock error: $error');
+    });
 
     return true;
   }
@@ -193,6 +283,14 @@ class ProductStore {
 
     products[index].quantity += quantity;
 
+    _firestore
+        .collection('products')
+        .doc(productId)
+        .update({'quantity': products[index].quantity})
+        .catchError((error) {
+      debugPrint('Firestore restoreStock error: $error');
+    });
+
     return true;
   }
 
@@ -210,27 +308,22 @@ class ProductStore {
       return false;
     }
 
-    // Proposed price must be greater than zero.
     if (proposedPrice <= 0) {
       return false;
     }
 
-    // Negotiation must be enabled.
     if (!product.allowNegotiation) {
       return false;
     }
 
-    // Negotiation requires a minimum price.
     if (product.minimumPrice == null) {
       return false;
     }
 
-    // Buyer cannot offer below the farmer's minimum.
     if (proposedPrice < product.minimumPrice!) {
       return false;
     }
 
-    // Buyer cannot offer more than the listed price.
     if (proposedPrice > product.price) {
       return false;
     }
@@ -258,7 +351,7 @@ class ProductStore {
 
   static Product? getProductByName(String productName) {
     for (final product in products) {
-      if (product.name == productName) {
+      if (product.name.toLowerCase() == productName.toLowerCase()) {
         return product;
       }
     }
@@ -295,7 +388,6 @@ class ProductStore {
       return false;
     }
 
-    return product.allowNegotiation &&
-        product.minimumPrice != null;
+    return product.allowNegotiation && product.minimumPrice != null;
   }
 }
