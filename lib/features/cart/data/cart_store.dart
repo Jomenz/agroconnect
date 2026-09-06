@@ -4,14 +4,14 @@ class CartItem {
   final Product product;
   int quantity;
 
-  // The price agreed upon through negotiation.
-  // Null means the buyer is using the original
-  // listed price.
+  final String buyerId;
+
   double? negotiatedPrice;
 
   CartItem({
     required this.product,
     this.quantity = 1,
+    this.buyerId = '',
     this.negotiatedPrice,
   });
 
@@ -52,6 +52,26 @@ class CartStore {
   CartStore._();
 
   static final List<CartItem> items = [];
+  static String? _currentBuyerId;
+
+  static void setCurrentBuyerId(String? buyerId) {
+    if (_currentBuyerId != buyerId) {
+      _currentBuyerId = buyerId;
+      items.clear();
+    }
+  }
+
+  static List<CartItem> get itemsForCurrentUser {
+    final buyerId = _currentBuyerId;
+    if (buyerId == null || buyerId.isEmpty) return const [];
+    return items.where((item) => item.buyerId == buyerId).toList();
+  }
+
+  static bool _isCurrentUser(String? buyerId) {
+    return buyerId != null &&
+        buyerId.isNotEmpty &&
+        buyerId == _currentBuyerId;
+  }
 
   // --------------------------------------------------
   // ADD TO CART
@@ -61,13 +81,13 @@ class CartStore {
     Product product, {
     double? negotiatedPrice,
   }) {
-    // Product is out of stock.
+    final buyerId = _currentBuyerId ?? '';
+    if (buyerId.isEmpty) return false;
+
     if (product.quantity <= 0) {
       return false;
     }
 
-    // If a negotiated price is supplied,
-    // validate it before adding it to the cart.
     if (negotiatedPrice != null) {
       if (!ProductStoreHelper.isValidNegotiatedPrice(
         product,
@@ -84,13 +104,10 @@ class CartStore {
     if (existingItems.isNotEmpty) {
       final item = existingItems.first;
 
-      // Don't allow the buyer to exceed available stock.
       if (item.quantity >= product.quantity) {
         return false;
       }
 
-      // If a negotiated price is supplied, update the
-      // existing cart item's negotiated price.
       if (negotiatedPrice != null) {
         item.negotiatedPrice = negotiatedPrice;
       }
@@ -100,6 +117,7 @@ class CartStore {
       items.add(
         CartItem(
           product: product,
+          buyerId: buyerId,
           negotiatedPrice: negotiatedPrice,
         ),
       );
@@ -116,6 +134,10 @@ class CartStore {
     CartItem item,
     double proposedPrice,
   ) {
+    if (!_isCurrentUser(item.buyerId)) {
+      return false;
+    }
+
     if (!ProductStoreHelper.isValidNegotiatedPrice(
       item.product,
       proposedPrice,
@@ -145,7 +167,7 @@ class CartStore {
     }
 
     try {
-      final item = items.firstWhere(
+      final item = itemsForCurrentUser.firstWhere(
         (item) => item.product.id == productId,
       );
 
@@ -169,7 +191,7 @@ class CartStore {
     String productId,
   ) {
     try {
-      final item = items.firstWhere(
+      final item = itemsForCurrentUser.firstWhere(
         (item) => item.product.id == productId,
       );
 
@@ -186,7 +208,9 @@ class CartStore {
   // --------------------------------------------------
 
   static void clearNegotiatedPrice(CartItem item) {
-    item.negotiatedPrice = null;
+    if (_isCurrentUser(item.buyerId)) {
+      item.negotiatedPrice = null;
+    }
   }
 
   // --------------------------------------------------
@@ -194,6 +218,10 @@ class CartStore {
   // --------------------------------------------------
 
   static bool increaseQuantity(CartItem item) {
+    if (!_isCurrentUser(item.buyerId)) {
+      return false;
+    }
+
     if (item.quantity >= item.product.quantity) {
       return false;
     }
@@ -208,6 +236,10 @@ class CartStore {
   // --------------------------------------------------
 
   static void decreaseQuantity(CartItem item) {
+    if (!_isCurrentUser(item.buyerId)) {
+      return;
+    }
+
     if (item.quantity > 1) {
       item.quantity--;
     } else {
@@ -220,7 +252,9 @@ class CartStore {
   // --------------------------------------------------
 
   static void removeItem(CartItem item) {
-    items.remove(item);
+    if (_isCurrentUser(item.buyerId)) {
+      items.remove(item);
+    }
   }
 
   // --------------------------------------------------
@@ -228,7 +262,7 @@ class CartStore {
   // --------------------------------------------------
 
   static double get total {
-    return items.fold(
+    return itemsForCurrentUser.fold(
       0,
       (sum, item) => sum + item.totalPrice,
     );

@@ -42,7 +42,7 @@ class _CartScreenState extends State<CartScreen> {
   // ==================================================
 
   List<CartItem> get _checkoutItems {
-    return CartStore.items
+    return CartStore.itemsForCurrentUser
         .where(
           (item) => NegotiationStore.canCheckoutProduct(
             item.product.id,
@@ -56,7 +56,7 @@ class _CartScreenState extends State<CartScreen> {
   // ==================================================
 
   List<CartItem> get _waitingItems {
-    return CartStore.items
+    return CartStore.itemsForCurrentUser
         .where(
           _isQuantityLocked,
         )
@@ -260,7 +260,7 @@ class _CartScreenState extends State<CartScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = CartStore.items;
+    final items = CartStore.itemsForCurrentUser;
     final waitingItems = _waitingItems;
     final checkoutItems = _checkoutItems;
 

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:agroconnect/core/constants/app_colors.dart';
 import 'package:agroconnect/features/order/data/order_store.dart';
+import 'package:agroconnect/features/order/models/order.dart';
+import 'package:agroconnect/features/authentication/data/auth_service.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -32,6 +34,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
   void dispose() {
     _refreshTimer?.cancel();
     super.dispose();
+  }
+
+  List<Order> get _orders {
+    final buyerId = AuthService.instance.currentUser?.uid ?? '';
+    if (buyerId.isEmpty) return const [];
+    return OrderStore.orders
+        .where((order) => order.buyerId == buyerId)
+        .toList();
   }
 
   Color _statusColor(String status) {
@@ -105,7 +115,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final orders = OrderStore.orders;
+    final orders = _orders;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8F6),

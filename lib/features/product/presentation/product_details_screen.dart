@@ -28,7 +28,7 @@ class _ProductDetailsScreenState
   // ==================================================
 
   CartItem? _getCartItem() {
-    for (final item in CartStore.items) {
+    for (final item in CartStore.itemsForCurrentUser) {
       if (item.product.id == widget.product.id) {
         return item;
       }

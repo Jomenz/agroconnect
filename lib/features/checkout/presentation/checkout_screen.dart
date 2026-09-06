@@ -35,7 +35,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // ==================================================
 
   List<CartItem> get cartItems {
-    return CartStore.items.toList();
+    return CartStore.itemsForCurrentUser.toList();
   }
 
   // ==================================================
@@ -58,7 +58,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   //     -> locked
 
   List<CartItem> get checkoutItems {
-    return CartStore.items.where((cartItem) {
+    return CartStore.itemsForCurrentUser.where((cartItem) {
       return NegotiationStore.canCheckoutProduct(
         cartItem.product.id,
       );
@@ -70,7 +70,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // ==================================================
 
   List<CartItem> get waitingItems {
-    return CartStore.items.where((cartItem) {
+    return CartStore.itemsForCurrentUser.where((cartItem) {
       return NegotiationStore.hasPendingNegotiation(
         cartItem.product.id,
       );

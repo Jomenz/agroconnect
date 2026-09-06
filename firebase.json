@@ -1,1 +1,39 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"agroconnect-dcd0f","appId":"1:523956890809:android:aa34dca7050acbf7ef3f68","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"agroconnect-dcd0f","configurations":{"android":"1:523956890809:android:aa34dca7050acbf7ef3f68","ios":"1:523956890809:ios:9a67549108770225ef3f68","macos":"1:523956890809:ios:9a67549108770225ef3f68","web":"1:523956890809:web:7a2daea6272a7598ef3f68","windows":"1:523956890809:web:74193a33f1fc75aaef3f68"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "agroconnect-dcd0f",
+          "appId": "1:523956890809:android:aa34dca7050acbf7ef3f68",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "agroconnect-dcd0f",
+          "configurations": {
+            "android": "1:523956890809:android:aa34dca7050acbf7ef3f68",
+            "ios": "1:523956890809:ios:9a67549108770225ef3f68",
+            "macos": "1:523956890809:ios:9a67549108770225ef3f68",
+            "web": "1:523956890809:web:7a2daea6272a7598ef3f68",
+            "windows": "1:523956890809:web:74193a33f1fc75aaef3f68"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

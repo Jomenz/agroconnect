@@ -1698,8 +1698,12 @@ class _FarmerOrdersPageState
   Widget build(
     BuildContext context,
   ) {
-    final orders =
-        OrderStore.orders;
+    final farmerId = AuthService.instance.currentUser?.uid ?? '';
+    final orders = farmerId.isEmpty
+        ? <Order>[]
+        : OrderStore.orders
+            .where((order) => order.farmerIds.contains(farmerId))
+            .toList();
 
     if (orders.isEmpty) {
       return const SafeArea(

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:agroconnect/features/cart/data/cart_store.dart';
 
 class UserModel {
   final String uid;
@@ -90,6 +91,7 @@ class AuthService {
     final user = _auth.currentUser;
     if (user == null) {
       _currentUser = null;
+      CartStore.setCurrentBuyerId(null);
       return null;
     }
 
@@ -98,7 +100,6 @@ class AuthService {
       if (doc.exists && doc.data() != null) {
         _currentUser = UserModel.fromMap(doc.data()!, doc.id);
       } else {
-        // Create default profile if user exists in Auth but not Firestore
         final role = (user.email?.toLowerCase().contains('admin') ?? false)
             ? 'Admin'
             : 'Buyer';
@@ -114,8 +115,10 @@ class AuthService {
         await _firestore.collection('users').doc(user.uid).set(newProfile.toMap());
         _currentUser = newProfile;
       }
+      CartStore.setCurrentBuyerId(user.uid);
       return _currentUser;
     } catch (_) {
+      CartStore.setCurrentBuyerId(null);
       return null;
     }
   }
@@ -140,7 +143,6 @@ class AuthService {
       throw Exception('Failed to create user account.');
     }
 
-    // Update display name on Firebase Auth profile
     try {
       await user.updateDisplayName(name.trim());
     } catch (_) {}
@@ -160,6 +162,7 @@ class AuthService {
         .set(userModel.toMap());
 
     _currentUser = userModel;
+    CartStore.setCurrentBuyerId(user.uid);
     return userModel;
   }
 
@@ -201,10 +204,12 @@ class AuthService {
           .set(userModel.toMap());
 
       _currentUser = userModel;
+      CartStore.setCurrentBuyerId(user.uid);
       return userModel;
     }
 
     _currentUser = UserModel.fromMap(doc.data()!, doc.id);
+    CartStore.setCurrentBuyerId(user.uid);
     return _currentUser!;
   }
 
@@ -214,6 +219,7 @@ class AuthService {
   Future<void> signOut() async {
     await _auth.signOut();
     _currentUser = null;
+    CartStore.setCurrentBuyerId(null);
   }
 
   // --------------------------------------------------
