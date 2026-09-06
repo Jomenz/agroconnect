@@ -533,16 +533,30 @@ class _AddProductPageState
   bool allowNegotiation = false;
 
   Future<void> _pickImage(ImageSource source) async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: source, maxWidth: 1024, maxHeight: 1024, imageQuality: 85);
-    if (picked == null) return;
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
 
-    final bytes = await picked.readAsBytes();
-    final base64Image = base64Encode(bytes);
+      final bytes = await picked.readAsBytes();
+      final base64Image = base64Encode(bytes);
 
-    setState(() {
-      _pickedImageBase64 = base64Image;
-    });
+      setState(() {
+        _pickedImageBase64 = base64Image;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to pick image: $e'),
+        ),
+      );
+    }
   }
 
   void _addProduct() {
@@ -1133,16 +1147,30 @@ class _MyProductsPageState extends State<MyProductsPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             Future<void> pickImage(ImageSource source) async {
-              final picker = ImagePicker();
-              final picked = await picker.pickImage(source: source, maxWidth: 1024, maxHeight: 1024, imageQuality: 85);
-              if (picked == null) return;
+              try {
+                final picker = ImagePicker();
+                final picked = await picker.pickImage(
+                  source: source,
+                  maxWidth: 1024,
+                  maxHeight: 1024,
+                  imageQuality: 85,
+                );
+                if (picked == null) return;
 
-              final bytes = await picked.readAsBytes();
-              final base64Image = base64Encode(bytes);
+                final bytes = await picked.readAsBytes();
+                final base64Image = base64Encode(bytes);
 
-              setDialogState(() {
-                pickedImageBase64 = base64Image;
-              });
+                setDialogState(() {
+                  pickedImageBase64 = base64Image;
+                });
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Unable to pick image: $e'),
+                  ),
+                );
+              }
             }
 
             return AlertDialog(
