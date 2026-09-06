@@ -503,19 +503,12 @@ class _FarmerNegotiationsScreenState
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton.icon(
+          child: OutlinedButton(
             onPressed: () {
               _rejectNegotiation(
                 negotiation,
               );
             },
-            icon: const Icon(
-              Icons.close,
-              size: 18,
-            ),
-            label: const Text(
-              'Reject',
-            ),
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.red,
               side: const BorderSide(
@@ -529,25 +522,24 @@ class _FarmerNegotiationsScreenState
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
+            child: const Text(
+              'Reject',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
 
         const SizedBox(width: 8),
 
         Expanded(
-          child: OutlinedButton.icon(
+          child: OutlinedButton(
             onPressed: () {
               _showCounterOfferDialog(
                 negotiation,
               );
             },
-            icon: const Icon(
-              Icons.swap_horiz,
-              size: 18,
-            ),
-            label: const Text(
-              'Counter',
-            ),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,
               side: const BorderSide(
@@ -561,28 +553,27 @@ class _FarmerNegotiationsScreenState
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
+            child: const Text(
+              'Counter',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
 
         const SizedBox(width: 8),
 
         Expanded(
-          child: ElevatedButton.icon(
+          child: ElevatedButton(
             onPressed: () {
               _acceptNegotiation(
                 negotiation,
               );
             },
-            icon: const Icon(
-              Icons.check,
-              size: 18,
-            ),
-            label: const Text(
-              'Accept',
-            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.white,
+              foregroundColor: Colors.white,
               elevation: 0,
               minimumSize: const Size(
                 double.infinity,
@@ -590,6 +581,12 @@ class _FarmerNegotiationsScreenState
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Accept',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

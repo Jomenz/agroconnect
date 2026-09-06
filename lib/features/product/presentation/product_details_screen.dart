@@ -723,39 +723,51 @@ class _ProductDetailsScreenState
             // ==================================================
 
             Container(
-              width:
-                  double.infinity,
-              height:
-                  280,
-              margin:
-                  const EdgeInsets.all(
-                16,
+              width: double.infinity,
+              height: 280,
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(22),
               ),
-              decoration:
-                  BoxDecoration(
-                color:
-                    AppColors.primary
-                        .withValues(
-                  alpha: 0.08,
-                ),
-                borderRadius:
-                    BorderRadius.circular(
-                  22,
-                ),
-              ),
-              child:
-                  Stack(
+              child: Stack(
                 children: [
-                  const Center(
-                    child:
-                        Icon(
-                      Icons.agriculture,
-                      size:
-                          110,
-                      color:
-                          AppColors.primary,
+                  if (product.imageUrl != null)
+                    Image.network(
+                      product.imageUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(
+                          child: SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 3,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Center(
+                          child: Icon(
+                            Icons.agriculture,
+                            size: 110,
+                            color: AppColors.primary,
+                          ),
+                        );
+                      },
+                    )
+                  else
+                    const Center(
+                      child: Icon(
+                        Icons.agriculture,
+                        size: 110,
+                        color: AppColors.primary,
+                      ),
                     ),
-                  ),
 
                   // ------------------------------------------
                   // NEGOTIABLE BADGE
@@ -763,42 +775,23 @@ class _ProductDetailsScreenState
 
                   if (negotiationAvailable)
                     Positioned(
-                      top:
-                          16,
-                      left:
-                          16,
-                      child:
-                          Container(
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal:
-                              11,
-                          vertical:
-                              7,
+                      top: 16,
+                      left: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 7,
                         ),
-                        decoration:
-                            BoxDecoration(
-                          color:
-                              Colors.orange
-                                  .shade50,
-                          borderRadius:
-                              BorderRadius.circular(
-                            20,
-                          ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        child:
-                            Text(
+                        child: Text(
                           'Price Negotiable',
-                          style:
-                              TextStyle(
-                            color:
-                                Colors.orange
-                                    .shade800,
-                            fontSize:
-                                12,
-                            fontWeight:
-                                FontWeight.w700,
+                          style: TextStyle(
+                            color: Colors.orange.shade800,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
@@ -809,46 +802,29 @@ class _ProductDetailsScreenState
                   // ------------------------------------------
 
                   Positioned(
-                    top:
-                        16,
-                    right:
-                        16,
-                    child:
-                        Container(
-                      padding:
-                          const EdgeInsets
-                              .symmetric(
-                        horizontal:
-                            11,
-                        vertical:
-                            7,
+                    top: 16,
+                    right: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 11,
+                        vertical: 7,
                       ),
-                      decoration:
-                          BoxDecoration(
-                        color:
-                            outOfStock
-                                ? Colors.red.shade50
-                                : Colors.green.shade50,
-                        borderRadius:
-                            BorderRadius.circular(
-                          20,
-                        ),
+                      decoration: BoxDecoration(
+                        color: outOfStock
+                            ? Colors.red.shade50
+                            : Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                      child:
-                          Text(
+                      child: Text(
                         outOfStock
                             ? 'Out of stock'
                             : '${product.quantity} available',
-                        style:
-                            TextStyle(
-                          color:
-                              outOfStock
-                                  ? Colors.red.shade700
-                                  : Colors.green.shade700,
-                          fontSize:
-                              12,
-                          fontWeight:
-                              FontWeight.w700,
+                        style: TextStyle(
+                          color: outOfStock
+                              ? Colors.red.shade700
+                              : Colors.green.shade700,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),

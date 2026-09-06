@@ -619,27 +619,47 @@ class ProductCard extends StatelessWidget {
                   children: [
                     Container(
                       width: double.infinity,
-                      decoration:
-                          BoxDecoration(
-                        color: AppColors
-                            .primary
-                            .withValues(
-                          alpha: 0.08,
-                        ),
-                        borderRadius:
-                            BorderRadius.circular(
-                          14,
-                        ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      child:
-                          const Center(
-                        child: Icon(
-                          Icons.agriculture,
-                          size: 52,
-                          color:
-                              AppColors.primary,
-                        ),
-                      ),
+                      child: product.imageUrl != null
+                          ? Image.network(
+                              product.imageUrl!,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              loadingBuilder:
+                                  (context, child, progress) {
+                                if (progress == null) return child;
+                                return const Center(
+                                  child: SizedBox(
+                                    width: 28,
+                                    height: 28,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                );
+                              },
+                              errorBuilder:
+                                  (context, error, stackTrace) {
+                                return const Center(
+                                  child: Icon(
+                                    Icons.agriculture,
+                                    size: 52,
+                                    color: AppColors.primary,
+                                  ),
+                                );
+                              },
+                            )
+                          : const Center(
+                              child: Icon(
+                                Icons.agriculture,
+                                size: 52,
+                                color: AppColors.primary,
+                              ),
+                            ),
                     ),
 
                     // ------------------------------------------
@@ -651,33 +671,20 @@ class ProductCard extends StatelessWidget {
                         top: 8,
                         left: 8,
                         child: Container(
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 5,
                           ),
-                          decoration:
-                              BoxDecoration(
-                            color: Colors
-                                .orange
-                                .shade50,
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              20,
-                            ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
                             'Negotiable',
                             style: TextStyle(
-                              color: Colors
-                                  .orange
-                                  .shade800,
+                              color: Colors.orange.shade800,
                               fontSize: 10,
-                              fontWeight:
-                                  FontWeight
-                                      .w700,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
@@ -692,31 +699,20 @@ class ProductCard extends StatelessWidget {
                         top: 8,
                         right: 8,
                         child: Container(
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 5,
                           ),
-                          decoration:
-                              BoxDecoration(
-                            color: Colors
-                                .red
-                                .shade50,
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              20,
-                            ),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
                             'Out of stock',
                             style: TextStyle(
-                              color:
-                                  Colors.red.shade700,
+                              color: Colors.red.shade700,
                               fontSize: 10,
-                              fontWeight:
-                                  FontWeight.w700,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),

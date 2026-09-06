@@ -10,51 +10,6 @@ class ProductStore {
   static final List<Product> products = [];
   static bool _isInitialized = false;
 
-  static final List<Product> _defaultInitialProducts = [
-    Product(
-      id: 'demo_001',
-      name: 'Tomatoes',
-      price: 25.00,
-      quantity: 20,
-      description: 'Fresh farm tomatoes.',
-      farmerName: 'Demo Farmer',
-      farmerId: 'demo_farmer_01',
-      allowNegotiation: true,
-      minimumPrice: 20.00,
-    ),
-    Product(
-      id: 'demo_002',
-      name: 'Maize',
-      price: 18.00,
-      quantity: 30,
-      description: 'Quality locally grown maize.',
-      farmerName: 'Demo Farmer',
-      farmerId: 'demo_farmer_01',
-      allowNegotiation: false,
-    ),
-    Product(
-      id: 'demo_003',
-      name: 'Mangoes',
-      price: 15.00,
-      quantity: 25,
-      description: 'Fresh and sweet mangoes.',
-      farmerName: 'Demo Farmer',
-      farmerId: 'demo_farmer_01',
-      allowNegotiation: true,
-      minimumPrice: 12.00,
-    ),
-    Product(
-      id: 'demo_004',
-      name: 'Potatoes',
-      price: 20.00,
-      quantity: 40,
-      description: 'Fresh farm potatoes.',
-      farmerName: 'Demo Farmer',
-      farmerId: 'demo_farmer_01',
-      allowNegotiation: false,
-    ),
-  ];
-
   // --------------------------------------------------
   // INITIALIZE FIRESTORE LISTENER
   // --------------------------------------------------
@@ -63,42 +18,19 @@ class ProductStore {
     if (_isInitialized) return;
     _isInitialized = true;
 
-    // Populate initial products in local list as fallback
-    if (products.isEmpty) {
-      products.addAll(_defaultInitialProducts);
-    }
-
     try {
       _firestore.collection('products').snapshots().listen((snapshot) {
-        if (snapshot.docs.isEmpty) {
-          // If Firestore collection is empty, seed with initial demo products
-          _seedDefaultProducts();
-        } else {
-          final loaded = snapshot.docs.map((doc) {
-            return Product.fromMap(doc.data(), doc.id);
-          }).toList();
+        final loaded = snapshot.docs.map((doc) {
+          return Product.fromMap(doc.data(), doc.id);
+        }).toList();
 
-          products.clear();
-          products.addAll(loaded);
-        }
+        products.clear();
+        products.addAll(loaded);
       }, onError: (error) {
         debugPrint('ProductStore Firestore listener error: $error');
       });
     } catch (e) {
       debugPrint('ProductStore initialize failed: $e');
-    }
-  }
-
-  static Future<void> _seedDefaultProducts() async {
-    try {
-      final batch = _firestore.batch();
-      for (final product in _defaultInitialProducts) {
-        final docRef = _firestore.collection('products').doc(product.id);
-        batch.set(docRef, product.toMap());
-      }
-      await batch.commit();
-    } catch (e) {
-      debugPrint('Failed to seed default products: $e');
     }
   }
 

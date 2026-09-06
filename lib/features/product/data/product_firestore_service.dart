@@ -21,6 +21,7 @@ class ProductFirestoreService {
       'description': product.description,
       'farmerName': product.farmerName,
       'farmerId': product.farmerId,
+      'imageUrl': product.imageUrl,
       'allowNegotiation': product.allowNegotiation,
       'minimumPrice': product.minimumPrice,
       'createdAt': FieldValue.serverTimestamp(),
@@ -35,6 +36,7 @@ class ProductFirestoreService {
       'description': product.description,
       'farmerName': product.farmerName,
       'farmerId': product.farmerId,
+      'imageUrl': product.imageUrl,
       'allowNegotiation': product.allowNegotiation,
       'minimumPrice': product.minimumPrice,
     });
@@ -80,6 +82,7 @@ class ProductFirestoreService {
       description: data['description']?.toString() ?? '',
       farmerName: data['farmerName']?.toString() ?? 'Farmer',
       farmerId: data['farmerId']?.toString() ?? '',
+      imageUrl: data['imageUrl']?.toString(),
       allowNegotiation: data['allowNegotiation'] == true,
       minimumPrice: data['minimumPrice'] == null
           ? null

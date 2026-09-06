@@ -6,6 +6,7 @@ class Product {
   final String description;
   final String farmerName;
   final String farmerId;
+  final String? imageUrl;
 
   // Price negotiation settings
   final bool allowNegotiation;
@@ -19,6 +20,7 @@ class Product {
     required this.description,
     required this.farmerName,
     this.farmerId = '',
+    this.imageUrl,
     this.allowNegotiation = false,
     this.minimumPrice,
   });
@@ -32,6 +34,7 @@ class Product {
       'description': description,
       'farmerName': farmerName,
       'farmerId': farmerId,
+      'imageUrl': imageUrl,
       'allowNegotiation': allowNegotiation,
       'minimumPrice': minimumPrice,
     };
@@ -46,6 +49,7 @@ class Product {
       description: map['description']?.toString() ?? '',
       farmerName: map['farmerName']?.toString() ?? '',
       farmerId: map['farmerId']?.toString() ?? '',
+      imageUrl: map['imageUrl']?.toString(),
       allowNegotiation: map['allowNegotiation'] == true,
       minimumPrice: (map['minimumPrice'] is num)
           ? (map['minimumPrice'] as num).toDouble()

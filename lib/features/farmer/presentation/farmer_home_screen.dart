@@ -525,6 +525,10 @@ class _AddProductPageState
       minimumPriceController =
       TextEditingController();
 
+  final TextEditingController
+      imageUrlController =
+      TextEditingController();
+
   bool allowNegotiation = false;
 
   void _addProduct() {
@@ -543,6 +547,11 @@ class _AddProductPageState
 
     final String description =
         descriptionController.text.trim();
+
+    final String? imageUrl =
+        imageUrlController.text.trim().isEmpty
+            ? null
+            : imageUrlController.text.trim();
 
     final double? minimumPrice =
         double.tryParse(
@@ -665,6 +674,8 @@ class _AddProductPageState
 
       farmerId: AuthService.instance.currentUser?.uid ?? '',
 
+      imageUrl: imageUrl,
+
       allowNegotiation:
           allowNegotiation,
 
@@ -725,6 +736,7 @@ class _AddProductPageState
     quantityController.dispose();
     descriptionController.dispose();
     minimumPriceController.dispose();
+    imageUrlController.dispose();
 
     super.dispose();
   }
@@ -846,6 +858,27 @@ class _AddProductPageState
                   child: Icon(
                     Icons.description_outlined,
                   ),
+                ),
+
+                border:
+                    OutlineInputBorder(
+                  borderRadius:
+                      BorderRadius.circular(12),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            TextField(
+              controller: imageUrlController,
+
+              decoration: InputDecoration(
+                labelText: 'Image URL',
+                hintText: 'https://example.com/image.jpg',
+
+                prefixIcon: const Icon(
+                  Icons.link_outlined,
                 ),
 
                 border:
@@ -1013,6 +1046,9 @@ class _MyProductsPageState extends State<MyProductsPage> {
     final minimumPriceController = TextEditingController(
       text: product.minimumPrice?.toString() ?? '',
     );
+    final imageUrlController = TextEditingController(
+      text: product.imageUrl ?? '',
+    );
 
     bool allowNegotiation = product.allowNegotiation;
 
@@ -1058,6 +1094,14 @@ class _MyProductsPageState extends State<MyProductsPage> {
                       maxLines: 3,
                       decoration: const InputDecoration(
                         labelText: 'Description',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: imageUrlController,
+                      decoration: const InputDecoration(
+                        labelText: 'Image URL',
+                        hintText: 'https://example.com/image.jpg',
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -1141,6 +1185,9 @@ class _MyProductsPageState extends State<MyProductsPage> {
                       farmerId: product.farmerId.isNotEmpty
                           ? product.farmerId
                           : _farmerId,
+                      imageUrl: imageUrlController.text.trim().isEmpty
+                          ? null
+                          : imageUrlController.text.trim(),
                       allowNegotiation: allowNegotiation,
                       minimumPrice:
                           allowNegotiation ? minimumPrice : null,
@@ -1185,6 +1232,7 @@ class _MyProductsPageState extends State<MyProductsPage> {
     quantityController.dispose();
     descriptionController.dispose();
     minimumPriceController.dispose();
+    imageUrlController.dispose();
   }
 
   Widget _buildEmptyState() {
@@ -1308,24 +1356,54 @@ class _MyProductsPageState extends State<MyProductsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 55,
-                              height: 55,
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.agriculture,
-                                color: AppColors.primary,
-                                size: 30,
-                              ),
-                            ),
-                            const SizedBox(width: 15),
-                            Expanded(
+                         Row(
+                           crossAxisAlignment: CrossAxisAlignment.start,
+                           children: [
+                             Container(
+                               width: 55,
+                               height: 55,
+                               decoration: BoxDecoration(
+                                 color: AppColors.primary.withValues(alpha: 0.12),
+                                 borderRadius: BorderRadius.circular(12),
+                               ),
+                               child: product.imageUrl != null
+                                   ? ClipRRect(
+                                       borderRadius: BorderRadius.circular(12),
+                                       child: Image.network(
+                                         product.imageUrl!,
+                                         fit: BoxFit.cover,
+                                         width: 55,
+                                         height: 55,
+                                         loadingBuilder: (context, child, progress) {
+                                           if (progress == null) return child;
+                                           return const Center(
+                                             child: SizedBox(
+                                               width: 20,
+                                               height: 20,
+                                               child: CircularProgressIndicator(
+                                                 strokeWidth: 2,
+                                                 color: AppColors.primary,
+                                               ),
+                                             ),
+                                           );
+                                         },
+                                         errorBuilder: (context, error, stackTrace) {
+                                           return const Icon(
+                                             Icons.agriculture,
+                                             color: AppColors.primary,
+                                             size: 30,
+                                           );
+                                         },
+                                       ),
+                                     )
+                                   : const Icon(
+                                       Icons.agriculture,
+                                       color: AppColors.primary,
+                                       size: 30,
+                                     ),
+                             ),
+                             const SizedBox(width: 15),
+                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
