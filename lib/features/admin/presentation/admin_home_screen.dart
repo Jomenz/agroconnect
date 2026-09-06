@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import 'package:agroconnect/core/constants/app_colors.dart';
@@ -734,41 +736,51 @@ class _AdminProductsPageState
                     borderRadius:
                         BorderRadius.circular(14),
                   ),
-                  child: product.imageUrl != null
+                  child: product.imageBase64 != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(14),
-                          child: Image.network(
-                            product.imageUrl!,
+                          child: Image.memory(
+                            base64Decode(product.imageBase64!),
                             fit: BoxFit.cover,
                             width: 58,
                             height: 58,
-                            loadingBuilder: (context, child, progress) {
-                              if (progress == null) return child;
-                              return const Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return const Icon(
-                                Icons.agriculture_outlined,
-                                color: AppColors.primary,
-                                size: 29,
-                              );
-                            },
                           ),
                         )
-                      : const Icon(
-                          Icons.agriculture_outlined,
-                          color: AppColors.primary,
-                          size: 29,
-                        ),
+                      : product.imageUrl != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: Image.network(
+                                product.imageUrl!,
+                                fit: BoxFit.cover,
+                                width: 58,
+                                height: 58,
+                                loadingBuilder: (context, child, progress) {
+                                  if (progress == null) return child;
+                                  return const Center(
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(
+                                    Icons.agriculture_outlined,
+                                    color: AppColors.primary,
+                                    size: 29,
+                                  );
+                                },
+                              ),
+                            )
+                          : const Icon(
+                              Icons.agriculture_outlined,
+                              color: AppColors.primary,
+                              size: 29,
+                            ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

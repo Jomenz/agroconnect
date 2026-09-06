@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:agroconnect/core/constants/app_colors.dart';
 import 'package:agroconnect/features/product/models/product.dart';
@@ -44,13 +47,13 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
       const FarmerOrdersPage(),
 
       // Index 3
-      const FarmerProfilePage(),
-
-      // Index 4
       const MyProductsPage(),
 
-      // Index 5
+      // Index 4
       const FarmerNegotiationsScreen(),
+
+      // Index 5
+      const FarmerProfilePage(),
     ];
   }
 
@@ -91,11 +94,6 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
           ),
 
           BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-
-          BottomNavigationBarItem(
             icon: Icon(Icons.inventory_2),
             label: 'My Products',
           ),
@@ -105,6 +103,11 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
               Icons.handshake_outlined,
             ),
             label: 'Negotiations',
+          ),
+
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
           ),
         ],
       ),
@@ -525,11 +528,22 @@ class _AddProductPageState
       minimumPriceController =
       TextEditingController();
 
-  final TextEditingController
-      imageUrlController =
-      TextEditingController();
+  String? _pickedImageBase64;
 
   bool allowNegotiation = false;
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source, maxWidth: 1024, maxHeight: 1024, imageQuality: 85);
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    final base64Image = base64Encode(bytes);
+
+    setState(() {
+      _pickedImageBase64 = base64Image;
+    });
+  }
 
   void _addProduct() {
     final String name =
@@ -548,10 +562,8 @@ class _AddProductPageState
     final String description =
         descriptionController.text.trim();
 
-    final String? imageUrl =
-        imageUrlController.text.trim().isEmpty
-            ? null
-            : imageUrlController.text.trim();
+    final String? imageBase64 =
+        _pickedImageBase64;
 
     final double? minimumPrice =
         double.tryParse(
@@ -674,7 +686,7 @@ class _AddProductPageState
 
       farmerId: AuthService.instance.currentUser?.uid ?? '',
 
-      imageUrl: imageUrl,
+      imageBase64: imageBase64,
 
       allowNegotiation:
           allowNegotiation,
@@ -717,6 +729,7 @@ class _AddProductPageState
 
     setState(() {
       allowNegotiation = false;
+      _pickedImageBase64 = null;
     });
 
     ScaffoldMessenger.of(context)
@@ -736,7 +749,6 @@ class _AddProductPageState
     quantityController.dispose();
     descriptionController.dispose();
     minimumPriceController.dispose();
-    imageUrlController.dispose();
 
     super.dispose();
   }
@@ -870,24 +882,88 @@ class _AddProductPageState
 
             const SizedBox(height: 18),
 
-            TextField(
-              controller: imageUrlController,
-
-              decoration: InputDecoration(
-                labelText: 'Image URL',
-                hintText: 'https://example.com/image.jpg',
-
-                prefixIcon: const Icon(
-                  Icons.link_outlined,
-                ),
-
-                border:
-                    OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(12),
-                ),
+            Text(
+              'Product Image',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade800,
               ),
             ),
+
+            const SizedBox(height: 10),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickImage(ImageSource.gallery),
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: const Text('Gallery'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickImage(ImageSource.camera),
+                    icon: const Icon(Icons.camera_alt_outlined),
+                    label: const Text('Camera'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            if (_pickedImageBase64 != null) ...[
+              const SizedBox(height: 12),
+              Stack(
+                children: [
+                  Container(
+                    height: 160,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        base64Decode(_pickedImageBase64!),
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton.filled(
+                      onPressed: () {
+                        setState(() {
+                          _pickedImageBase64 = null;
+                        });
+                      },
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.red.shade600,
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.close, size: 18),
+                    ),
+                  ),
+                ],
+              ),
+            ],
 
             const SizedBox(height: 15),
 
@@ -1046,9 +1122,8 @@ class _MyProductsPageState extends State<MyProductsPage> {
     final minimumPriceController = TextEditingController(
       text: product.minimumPrice?.toString() ?? '',
     );
-    final imageUrlController = TextEditingController(
-      text: product.imageUrl ?? '',
-    );
+
+    String? pickedImageBase64 = product.imageBase64;
 
     bool allowNegotiation = product.allowNegotiation;
 
@@ -1057,6 +1132,19 @@ class _MyProductsPageState extends State<MyProductsPage> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            Future<void> pickImage(ImageSource source) async {
+              final picker = ImagePicker();
+              final picked = await picker.pickImage(source: source, maxWidth: 1024, maxHeight: 1024, imageQuality: 85);
+              if (picked == null) return;
+
+              final bytes = await picked.readAsBytes();
+              final base64Image = base64Encode(bytes);
+
+              setDialogState(() {
+                pickedImageBase64 = base64Image;
+              });
+            }
+
             return AlertDialog(
               title: const Text('Edit Product'),
               content: SingleChildScrollView(
@@ -1097,13 +1185,81 @@ class _MyProductsPageState extends State<MyProductsPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: imageUrlController,
-                      decoration: const InputDecoration(
-                        labelText: 'Image URL',
-                        hintText: 'https://example.com/image.jpg',
+                    Text(
+                      'Product Image',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade800,
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => pickImage(ImageSource.gallery),
+                            icon: const Icon(Icons.photo_library_outlined, size: 18),
+                            label: const Text('Gallery'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(color: AppColors.primary),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => pickImage(ImageSource.camera),
+                            icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                            label: const Text('Camera'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(color: AppColors.primary),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (pickedImageBase64 != null) ...[
+                      const SizedBox(height: 10),
+                      Stack(
+                        children: [
+                          Container(
+                            height: 120,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                base64Decode(pickedImageBase64!),
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: IconButton.filled(
+                              onPressed: () {
+                                setDialogState(() {
+                                  pickedImageBase64 = null;
+                                });
+                              },
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.red.shade600,
+                                foregroundColor: Colors.white,
+                              ),
+                              icon: const Icon(Icons.close, size: 16),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
@@ -1185,9 +1341,7 @@ class _MyProductsPageState extends State<MyProductsPage> {
                       farmerId: product.farmerId.isNotEmpty
                           ? product.farmerId
                           : _farmerId,
-                      imageUrl: imageUrlController.text.trim().isEmpty
-                          ? null
-                          : imageUrlController.text.trim(),
+                      imageBase64: pickedImageBase64,
                       allowNegotiation: allowNegotiation,
                       minimumPrice:
                           allowNegotiation ? minimumPrice : null,
@@ -1232,7 +1386,6 @@ class _MyProductsPageState extends State<MyProductsPage> {
     quantityController.dispose();
     descriptionController.dispose();
     minimumPriceController.dispose();
-    imageUrlController.dispose();
   }
 
   Widget _buildEmptyState() {
@@ -1366,41 +1519,51 @@ class _MyProductsPageState extends State<MyProductsPage> {
                                  color: AppColors.primary.withValues(alpha: 0.12),
                                  borderRadius: BorderRadius.circular(12),
                                ),
-                               child: product.imageUrl != null
-                                   ? ClipRRect(
-                                       borderRadius: BorderRadius.circular(12),
-                                       child: Image.network(
-                                         product.imageUrl!,
-                                         fit: BoxFit.cover,
-                                         width: 55,
-                                         height: 55,
-                                         loadingBuilder: (context, child, progress) {
-                                           if (progress == null) return child;
-                                           return const Center(
-                                             child: SizedBox(
-                                               width: 20,
-                                               height: 20,
-                                               child: CircularProgressIndicator(
-                                                 strokeWidth: 2,
-                                                 color: AppColors.primary,
-                                               ),
-                                             ),
-                                           );
-                                         },
-                                         errorBuilder: (context, error, stackTrace) {
-                                           return const Icon(
-                                             Icons.agriculture,
-                                             color: AppColors.primary,
-                                             size: 30,
-                                           );
-                                         },
-                                       ),
-                                     )
-                                   : const Icon(
-                                       Icons.agriculture,
-                                       color: AppColors.primary,
-                                       size: 30,
-                                     ),
+                                child: product.imageBase64 != null
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Image.memory(
+                                          base64Decode(product.imageBase64!),
+                                          fit: BoxFit.cover,
+                                          width: 55,
+                                          height: 55,
+                                        ),
+                                      )
+                                    : product.imageUrl != null
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(12),
+                                            child: Image.network(
+                                              product.imageUrl!,
+                                              fit: BoxFit.cover,
+                                              width: 55,
+                                              height: 55,
+                                              loadingBuilder: (context, child, progress) {
+                                                if (progress == null) return child;
+                                                return const Center(
+                                                  child: SizedBox(
+                                                    width: 20,
+                                                    height: 20,
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: AppColors.primary,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                              errorBuilder: (context, error, stackTrace) {
+                                                return const Icon(
+                                                  Icons.agriculture,
+                                                  color: AppColors.primary,
+                                                  size: 30,
+                                                );
+                                              },
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.agriculture,
+                                            color: AppColors.primary,
+                                            size: 30,
+                                          ),
                              ),
                              const SizedBox(width: 15),
                              Expanded(

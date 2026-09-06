@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import 'package:agroconnect/core/constants/app_colors.dart';
@@ -623,43 +625,49 @@ class ProductCard extends StatelessWidget {
                         color: AppColors.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: product.imageUrl != null
-                          ? Image.network(
-                              product.imageUrl!,
+                      child: product.imageBase64 != null
+                          ? Image.memory(
+                              base64Decode(product.imageBase64!),
                               fit: BoxFit.cover,
                               width: double.infinity,
-                              loadingBuilder:
-                                  (context, child, progress) {
-                                if (progress == null) return child;
-                                return const Center(
-                                  child: SizedBox(
-                                    width: 28,
-                                    height: 28,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                );
-                              },
-                              errorBuilder:
-                                  (context, error, stackTrace) {
-                                return const Center(
+                            )
+                          : product.imageUrl != null
+                              ? Image.network(
+                                  product.imageUrl!,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  loadingBuilder:
+                                      (context, child, progress) {
+                                    if (progress == null) return child;
+                                    return const Center(
+                                      child: SizedBox(
+                                        width: 28,
+                                        height: 28,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder:
+                                      (context, error, stackTrace) {
+                                    return const Center(
+                                      child: Icon(
+                                        Icons.agriculture,
+                                        size: 52,
+                                        color: AppColors.primary,
+                                      ),
+                                    );
+                                  },
+                                )
+                              : const Center(
                                   child: Icon(
                                     Icons.agriculture,
                                     size: 52,
                                     color: AppColors.primary,
                                   ),
-                                );
-                              },
-                            )
-                          : const Center(
-                              child: Icon(
-                                Icons.agriculture,
-                                size: 52,
-                                color: AppColors.primary,
-                              ),
-                            ),
+                                ),
                     ),
 
                     // ------------------------------------------

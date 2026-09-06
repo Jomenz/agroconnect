@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import 'package:agroconnect/core/constants/app_colors.dart';
@@ -732,7 +734,13 @@ class _ProductDetailsScreenState
               ),
               child: Stack(
                 children: [
-                  if (product.imageUrl != null)
+                  if (product.imageBase64 != null)
+                    Image.memory(
+                      base64Decode(product.imageBase64!),
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                    )
+                  else if (product.imageUrl != null)
                     Image.network(
                       product.imageUrl!,
                       fit: BoxFit.cover,
